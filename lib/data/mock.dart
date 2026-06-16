@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../app/theme.dart';
 import '../models/models.dart';
+import 'repo.dart';
 
 /// In-memory store shared across the exam-creation wizard. A tiny ChangeNotifier
 /// keeps the multi-step flow stateful without pulling in a heavier dependency.
@@ -10,59 +11,70 @@ class ExamDraft extends ChangeNotifier {
   String description = '';
   int duration = 90;
   String format = 'Mock Exam';
-  final Set<String> targetClasses = {'Grade 12 - Advanced Calculus', 'Olympiad Batch A'};
-  int reach = 42;
+  final Set<String> targetClasses = {};
+  final Map<String, String> classIdsByName = {}; // name -> backend id
+  int reach = 0;
   String parsingEngine = 'Advanced';
-  String fileName = 'JEE_Advanced_2023.pdf';
+  String fileName = '';
   bool strictStart = true;
   bool flexibleWindow = false;
   bool gracePeriod = true;
   bool randomize = false;
-  int questions = 30;
-  int marks = 120;
+  int questions = 0;
+  int marks = 0;
+
+  // Backend wiring
+  String? importJobId; // PDF parse job, set after upload
+  List<String> importedQuestionIds = [];
+  String? examId; // created on publish
+
+  void reset() {
+    title = '';
+    description = '';
+    duration = 90;
+    targetClasses.clear();
+    fileName = '';
+    importJobId = null;
+    importedQuestionIds = [];
+    examId = null;
+    questions = 0;
+    marks = 0;
+    notifyListeners();
+  }
 
   void touch() => notifyListeners();
 }
 
 final examDraft = ExamDraft();
 
-/// Shared store for the AI-review question list. The review screen and the edit
-/// screen both read/write this so edits persist across navigation — no backend.
+/// Shared store for the question list. The bank, AI-review, and edit screens
+/// all read/write this; [loadFromApi] hydrates it from the backend.
 class QuestionStore extends ChangeNotifier {
-  final List<QuestionItem> questions = [
-    QuestionItem(
-      label: 'Q1',
-      prompt: r'\text{Evaluate } \int_{0}^{\pi} \sin(x)\,dx',
-      type: 'Multiple Choice',
-      status: QStatus.parsed,
-      hasGraph: true,
-      options: [
-        QuestionOption('0'),
-        QuestionOption('1'),
-        QuestionOption('2', correct: true),
-        QuestionOption(r'\pi'),
-      ],
-    ),
-    QuestionItem(
-      label: 'Q2',
-      prompt: r'\lim_{n\to\infty}\left(1+\frac{1}{x}\right)^x = e \text{ ?}',
-      type: 'Numeric',
-      status: QStatus.reviewNeeded,
-      warning:
-          'Recognition low (82%). AI suggests manual check of the limit notation.',
-      options: [QuestionOption('e', correct: true)],
-    ),
-    QuestionItem(
-      label: 'Q3',
-      prompt: r'\text{Solve for } x: \; x^2 - 5x + 6 = 0',
-      type: 'Short Answer',
-      status: QStatus.parsed,
-      options: [
-        QuestionOption('x = 2'),
-        QuestionOption('x = 3'),
-      ],
-    ),
-  ];
+  final List<QuestionItem> questions = [];
+  bool loading = false;
+  String? error;
+
+  Future<void> loadFromApi({List<String>? onlyIds}) async {
+    loading = true;
+    error = null;
+    notifyListeners();
+    try {
+      final rows = await Repo.questions();
+      questions.clear();
+      var pos = 1;
+      for (final row in rows) {
+        final q = QuestionItem.fromApi(row as Map<String, dynamic>, pos);
+        if (onlyIds == null || onlyIds.contains(q.id)) {
+          questions.add(q);
+          pos++;
+        }
+      }
+    } catch (e) {
+      error = e.toString();
+    }
+    loading = false;
+    notifyListeners();
+  }
 
   void touch() => notifyListeners();
 }

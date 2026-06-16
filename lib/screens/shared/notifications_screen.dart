@@ -58,6 +58,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         appBar: AppBar(
           backgroundColor: AppColors.background,
           leading: IconButton(
+              tooltip: 'Back',
               icon: const Icon(Icons.arrow_back),
               onPressed: () => popOrGo(context, home)),
           titleSpacing: 0,

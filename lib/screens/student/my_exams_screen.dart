@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../app/theme.dart';
-import '../../data/store.dart';
+import '../../data/repo.dart';
 import '../../widgets/common.dart';
 import 'student_shell.dart';
 
-/// #7 — Student exams list: upcoming / live / past with statuses, closing the
-/// teacher-publishes -> student-takes loop.
+/// Student exams list, live from the backend: upcoming (not started /
+/// in progress) and past (submitted / graded) with real scores.
 class MyExamsScreen extends StatefulWidget {
   const MyExamsScreen({super.key});
   @override
@@ -15,15 +15,58 @@ class MyExamsScreen extends StatefulWidget {
 
 class _MyExamsScreenState extends State<MyExamsScreen> {
   int _tab = 0;
+  List<dynamic> _exams = [];
+  bool _loading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final exams = await Repo.studentExams();
+      if (!mounted) return;
+      setState(() {
+        _exams = exams;
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e.toString();
+        _loading = false;
+      });
+    }
+  }
+
+  bool _isPast(Map<String, dynamic> e) =>
+      e['status'] == 'submitted' ||
+      e['status'] == 'auto_graded' ||
+      e['status'] == 'manual_review' ||
+      e['status'] == 'graded';
 
   @override
   Widget build(BuildContext context) {
-    final resultsOut = AppStore.resultsPublished;
+    final upcoming = _exams
+        .where((e) => !_isPast(e as Map<String, dynamic>))
+        .cast<Map<String, dynamic>>()
+        .toList();
+    final past = _exams
+        .where((e) => _isPast(e as Map<String, dynamic>))
+        .cast<Map<String, dynamic>>()
+        .toList();
+
     return StudentShell(
       title: 'My Exams',
       currentTab: 2,
       body: Column(children: [
-        // Upcoming / Past segmented
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
           child: Container(
@@ -59,70 +102,39 @@ class _MyExamsScreenState extends State<MyExamsScreen> {
           ),
         ),
         Expanded(
-          child: ListView(
-            padding: const EdgeInsets.all(AppSpacing.md),
-            children: _tab == 0
-                ? [
-                    _ExamTile(
-                      title: 'JEE Advanced: Paper 1',
-                      sub: 'Dr. Aris Thorne · 18 questions · 180 min',
-                      chip: 'LIVE NOW',
-                      chipColor: AppColors.success,
-                      filled: true,
-                      action: AppButton('Enter',
-                          kind: AppBtnKind.secondary,
-                          onPressed: () => context.push('/student/exam')),
+          child: _loading
+              ? const Center(child: CircularProgressIndicator())
+              : _error != null
+                  ? Center(
+                      child: Column(mainAxisSize: MainAxisSize.min, children: [
+                      Text(_error!,
+                          style: Theme.of(context).textTheme.bodyMedium),
+                      const SizedBox(height: 12),
+                      AppButton('Retry', onPressed: _load),
+                    ]))
+                  : RefreshIndicator(
+                      onRefresh: _load,
+                      child: ListView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        padding: const EdgeInsets.all(AppSpacing.md),
+                        children: [
+                          if ((_tab == 0 ? upcoming : past).isEmpty)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 60),
+                              child: Center(
+                                child: Text(
+                                    _tab == 0
+                                        ? 'No upcoming exams. Pull to refresh.'
+                                        : 'No completed exams yet.',
+                                    style:
+                                        Theme.of(context).textTheme.bodyMedium),
+                              ),
+                            ),
+                          for (final e in (_tab == 0 ? upcoming : past))
+                            _ExamTile(exam: e),
+                        ],
+                      ),
                     ),
-                    _ExamTile(
-                      title: 'Weekly Physics Quiz',
-                      sub: 'Dr. Thorne · due in 2 days',
-                      chip: 'SCHEDULED',
-                      chipColor: AppColors.teal,
-                      action: AppButton('Take Now',
-                          kind: AppBtnKind.ghost,
-                          onPressed: () => context.push('/student/exam')),
-                    ),
-                    _ExamTile(
-                      title: 'Chemistry Mid-term',
-                      sub: 'Opens 28 Nov, 09:00 · countdown 24h prior',
-                      chip: 'UPCOMING',
-                      chipColor: AppColors.muted,
-                    ),
-                  ]
-                : [
-                    _ExamTile(
-                      title: 'JEE Main Mock 4',
-                      sub: 'Submitted 2h ago · 18 questions',
-                      chip: resultsOut ? 'GRADED · 84%' : 'AWAITING RESULTS',
-                      chipColor:
-                          resultsOut ? AppColors.success : AppColors.secondary,
-                      action: resultsOut
-                          ? AppButton('View Analysis',
-                              onPressed: () =>
-                                  context.push('/student/exam-analysis'))
-                          : null,
-                    ),
-                    _ExamTile(
-                      title: 'Calculus Practice Set',
-                      sub: 'AI-generated · completed yesterday',
-                      chip: 'SCORED 85/100',
-                      chipColor: AppColors.primary,
-                      action: AppButton('Results',
-                          kind: AppBtnKind.ghost,
-                          onPressed: () =>
-                              context.push('/student/practice-results')),
-                    ),
-                    _ExamTile(
-                      title: 'Mock IIT-JEE Full #16',
-                      sub: 'Mar 14 · 284/300',
-                      chip: 'PASSED',
-                      chipColor: AppColors.success,
-                      action: AppButton('Solutions',
-                          kind: AppBtnKind.ghost,
-                          onPressed: () => context.push('/student/solution')),
-                    ),
-                  ],
-          ),
         ),
       ]),
     );
@@ -130,18 +142,45 @@ class _MyExamsScreenState extends State<MyExamsScreen> {
 }
 
 class _ExamTile extends StatelessWidget {
-  const _ExamTile({
-    required this.title, required this.sub,
-    required this.chip, required this.chipColor,
-    this.action, this.filled = false,
-  });
-  final String title, sub, chip;
-  final Color chipColor;
-  final Widget? action;
-  final bool filled;
+  const _ExamTile({required this.exam});
+  final Map<String, dynamic> exam;
 
   @override
   Widget build(BuildContext context) {
+    final status = exam['status'] as String?;
+    final examId = exam['exam_id'] as String;
+    final title = exam['title'] as String? ?? '';
+    final sub =
+        '${exam['board']} · ${exam['duration_min']} min · ${exam['total_marks']} marks';
+
+    final (chip, chipColor, action) = switch (status) {
+      'not_started' => (
+          'READY',
+          AppColors.success,
+          AppButton('Start Exam',
+              kind: AppBtnKind.secondary,
+              onPressed: () => context.push('/student/exam?exam=$examId')),
+        ),
+      'in_progress' => (
+          'IN PROGRESS',
+          AppColors.teal,
+          AppButton('Resume',
+              kind: AppBtnKind.secondary,
+              onPressed: () => context.push('/student/exam?exam=$examId')),
+        ),
+      'graded' || 'auto_graded' => (
+          'GRADED · ${exam['score']}/${exam['max_score']}',
+          AppColors.success,
+          null,
+        ),
+      'manual_review' || 'submitted' => (
+          'AWAITING RESULTS',
+          AppColors.secondary,
+          null,
+        ),
+      _ => ('UPCOMING', AppColors.muted, null),
+    };
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: AppCard(
@@ -155,13 +194,13 @@ class _ExamTile extends StatelessWidget {
                 child: Text(title,
                     style: Theme.of(context).textTheme.titleMedium),
               ),
-              StatusChip(chip, color: chipColor, filled: filled),
+              StatusChip(chip, color: chipColor, filled: status == 'not_started'),
             ]),
             const SizedBox(height: 4),
             Text(sub, style: Theme.of(context).textTheme.bodySmall),
             if (action != null) ...[
               const SizedBox(height: 12),
-              Align(alignment: Alignment.centerRight, child: action!),
+              Align(alignment: Alignment.centerRight, child: action),
             ],
           ],
         ),

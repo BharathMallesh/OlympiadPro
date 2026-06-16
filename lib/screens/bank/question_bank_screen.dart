@@ -22,6 +22,12 @@ class _QuestionBankScreenState extends State<QuestionBankScreen> {
   static const _typeFilters = ['All', 'Multiple Choice', 'Numeric', 'Short Answer'];
 
   @override
+  void initState() {
+    super.initState();
+    questionStore.loadFromApi();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return AppShell(
       brand: 'MathKraft',
@@ -37,17 +43,35 @@ class _QuestionBankScreenState extends State<QuestionBankScreen> {
       body: ListenableBuilder(
         listenable: questionStore,
         builder: (context, _) {
+          if (questionStore.loading) {
+            return const Center(child: CircularProgressIndicator());
+          }
           final all = questionStore.questions;
-          final items = all.where((q) {
+          // Keep each match's original index so the edit route still points
+          // at the right entry in questionStore.questions.
+          final items = <(int, QuestionItem)>[];
+          for (var i = 0; i < all.length; i++) {
+            final q = all[i];
             final matchesQuery = _query.isEmpty ||
                 q.prompt.toLowerCase().contains(_query.toLowerCase());
             final matchesType = _typeFilter == 'All' || q.type == _typeFilter;
-            return matchesQuery && matchesType;
-          }).toList();
+            if (matchesQuery && matchesType) items.add((i, q));
+          }
 
-          return SingleChildScrollView(
+          // Lazily build rows (the bank can hold hundreds of LaTeX questions;
+          // a non-lazy list renders them all up front and janks the UI).
+          return ListView.builder(
             padding: const EdgeInsets.all(AppSpacing.lg),
-            child: Column(
+            itemCount: items.length + 1,
+            itemBuilder: (context, row) {
+              if (row > 0) {
+                final (origIndex, q) = items[row - 1];
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: _BankRow(index: origIndex, q: q),
+                );
+              }
+              return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // Search + filters
@@ -128,16 +152,10 @@ class _QuestionBankScreenState extends State<QuestionBankScreen> {
                       Text('No questions match your filters.',
                           style: Theme.of(context).textTheme.bodyMedium),
                     ]),
-                  )
-                else
-                  for (var i = 0; i < all.length; i++)
-                    if (items.contains(all[i]))
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: _BankRow(index: i, q: all[i]),
-                      ),
+                  ),
               ],
-            ),
+              );
+            },
           );
         },
       ),
@@ -161,12 +179,16 @@ class _BankRow extends StatelessWidget {
             Text(q.label,
                 style: AppTheme.mono(13, FontWeight.w700, color: AppColors.primary)),
             const SizedBox(width: 10),
-            StatusChip(q.type, color: AppColors.onSurfaceVariant),
-            const SizedBox(width: 8),
-            if (q.images.isNotEmpty)
-              StatusChip('${q.images.length} img', color: AppColors.teal,
-                  icon: Icons.image_outlined),
-            const Spacer(),
+            // Flexible + Wrap absorbs free space and lets chips spill onto a
+            // second line on narrow phones instead of overflowing the row.
+            Expanded(
+              child: Wrap(spacing: 8, runSpacing: 6, children: [
+                StatusChip(q.type, color: AppColors.onSurfaceVariant),
+                if (q.images.isNotEmpty || q.imageUrls.isNotEmpty)
+                  StatusChip('${q.images.length + q.imageUrls.length} img',
+                      color: AppColors.teal, icon: Icons.image_outlined),
+              ]),
+            ),
             IconButton(
               tooltip: 'Edit',
               icon: const Icon(Icons.edit_outlined, size: 18, color: AppColors.muted),
@@ -181,7 +203,7 @@ class _BankRow extends StatelessWidget {
             ),
           ]),
           const SizedBox(height: 10),
-          MathPanel(q.prompt.isEmpty ? '-' : q.prompt, fontSize: 15),
+          MixedMathText(q.prompt.isEmpty ? '-' : q.prompt, fontSize: 15),
           if (q.options.isNotEmpty) ...[
             const SizedBox(height: 10),
             Wrap(spacing: 8, runSpacing: 6, children: [

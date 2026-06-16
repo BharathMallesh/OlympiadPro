@@ -15,6 +15,7 @@ class IncidentReviewScreen extends StatelessWidget {
         appBar: AppBar(
           backgroundColor: AppColors.background,
           leading: IconButton(
+              tooltip: 'Back',
               icon: const Icon(Icons.arrow_back),
               onPressed: () => popOrGo(context, '/live/console')),
           titleSpacing: 0,

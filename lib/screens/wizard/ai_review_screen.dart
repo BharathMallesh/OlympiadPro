@@ -1,17 +1,105 @@
+import 'dart:async';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../app/theme.dart';
 import '../../data/mock.dart';
+import '../../data/repo.dart';
 import '../../models/models.dart';
 import '../../widgets/common.dart';
 import '../../widgets/math_text.dart';
 
-class AiReviewScreen extends StatelessWidget {
+class AiReviewScreen extends StatefulWidget {
   const AiReviewScreen({super.key});
+  @override
+  State<AiReviewScreen> createState() => _AiReviewScreenState();
+}
+
+class _AiReviewScreenState extends State<AiReviewScreen> {
+  bool _parsing = false;
+  String? _parseError;
+  Timer? _pollTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    final jobId = examDraft.importJobId;
+    if (jobId != null && examDraft.importedQuestionIds.isEmpty) {
+      _parsing = true;
+      _poll(jobId);
+    } else if (examDraft.importedQuestionIds.isNotEmpty) {
+      questionStore.loadFromApi(onlyIds: examDraft.importedQuestionIds);
+    } else {
+      questionStore.loadFromApi();
+    }
+  }
+
+  void _poll(String jobId) {
+    _pollTimer = Timer.periodic(const Duration(seconds: 3), (t) async {
+      try {
+        final job = await Repo.importStatus(jobId);
+        final status = job['status'] as String?;
+        if (status == 'done') {
+          t.cancel();
+          examDraft.importedQuestionIds =
+              (job['question_ids'] as List).cast<String>();
+          await questionStore.loadFromApi(
+              onlyIds: examDraft.importedQuestionIds);
+          if (mounted) setState(() => _parsing = false);
+        } else if (status == 'failed') {
+          t.cancel();
+          if (mounted) {
+            setState(() {
+              _parsing = false;
+              _parseError = job['error'] as String? ?? 'Parsing failed';
+            });
+          }
+        }
+      } catch (_) {
+        // transient poll failure; keep trying
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _pollTimer?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
+    if (_parsing) {
+      return Scaffold(
+        backgroundColor: AppColors.scaffold,
+        body: Center(
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            const CircularProgressIndicator(),
+            const SizedBox(height: 18),
+            Text('AI is parsing your paper…',
+                style: Theme.of(context).textTheme.headlineSmall),
+            const SizedBox(height: 6),
+            Text('Extracting questions, options, and LaTeX. ~30 seconds.',
+                style: Theme.of(context).textTheme.bodyMedium),
+          ]),
+        ),
+      );
+    }
+    if (_parseError != null) {
+      return Scaffold(
+        backgroundColor: AppColors.scaffold,
+        body: Center(
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            const Icon(Icons.error_outline, color: AppColors.error, size: 40),
+            const SizedBox(height: 12),
+            Text(_parseError!, style: Theme.of(context).textTheme.bodyMedium),
+            const SizedBox(height: 14),
+            AppButton('Back to Upload',
+                onPressed: () => context.go('/wizard/upload')),
+          ]),
+        ),
+      );
+    }
     return PopRedirect(
       fallbackRoute: '/wizard/upload',
       child: Scaffold(
@@ -19,6 +107,7 @@ class AiReviewScreen extends StatelessWidget {
       appBar: AppBar(
         backgroundColor: AppColors.background,
         leading: IconButton(
+            tooltip: 'Back',
             icon: const Icon(Icons.arrow_back),
             onPressed: () => context.go('/wizard/upload')),
         title: Text('AI Review & Edit',
@@ -47,7 +136,10 @@ class AiReviewScreen extends StatelessWidget {
                   Text('$reviewed of ${questions.length} reviewed',
                       style: AppTheme.mono(12, FontWeight.w500, color: AppColors.muted)),
                   const SizedBox(width: 16),
-                  Expanded(child: ProgressLine(reviewed / questions.length)),
+                  Expanded(
+                      child: ProgressLine(questions.isEmpty
+                          ? 0
+                          : reviewed / questions.length)),
                 ]),
               ),
               Expanded(
@@ -135,7 +227,7 @@ class _QuestionCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    MathPanel(q.prompt, fontSize: 16),
+                    MixedMathText(q.prompt, fontSize: 16),
                     const SizedBox(height: 8),
                     Text(q.type, style: Theme.of(context).textTheme.bodySmall),
                     // Attached images (added in the edit screen)

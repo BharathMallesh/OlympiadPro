@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../app/theme.dart';
+import '../../data/repo.dart';
 import '../../widgets/common.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -10,12 +11,38 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final _email = TextEditingController(text: 'educator@olympiadpro.edu');
-  final _password = TextEditingController(text: 'password');
+  final _email = TextEditingController();
+  final _password = TextEditingController();
   bool _obscure = true;
   bool _isStudent = false;
+  bool _busy = false;
 
-  String get _homeRoute => _isStudent ? '/student/hub' : '/dashboard';
+  Future<void> _signIn() async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      if (_isStudent) {
+        await Repo.studentLogin(_email.text.trim(), _password.text.trim());
+        if (mounted) context.go('/student/hub');
+      } else {
+        await Repo.teacherLogin(_email.text.trim(), _password.text.trim());
+        if (mounted) context.go('/dashboard');
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(e.toString() == 'unauthorized'
+              ? (_isStudent
+                  ? 'Invalid email or password'
+                  : 'Invalid email or password')
+              : e.toString()),
+          backgroundColor: AppColors.error,
+        ));
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -114,18 +141,21 @@ class _LoginScreenState extends State<LoginScreen> {
                       AppInput(
                           controller: _email,
                           icon: Icons.mail_outline,
-                          hint: 'educator@olympiadpro.edu'),
+                          hint: _isStudent
+                              ? 'student@school.edu'
+                              : 'educator@olympiadpro.edu'),
                       const SizedBox(height: 18),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           const FieldLabel('Password'),
-                          InkWell(
-                            onTap: () => context.push('/forgot-password'),
-                            child: Text('Forgot Password?',
-                                style: Theme.of(context).textTheme.bodySmall
-                                    ?.copyWith(color: AppColors.primary)),
-                          ),
+                          if (!_isStudent)
+                            InkWell(
+                              onTap: () => context.push('/forgot-password'),
+                              child: Text('Forgot Password?',
+                                  style: Theme.of(context).textTheme.bodySmall
+                                      ?.copyWith(color: AppColors.primary)),
+                            ),
                         ],
                       ),
                       AppInput(
@@ -133,6 +163,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         icon: Icons.lock_outline,
                         obscure: _obscure,
                         suffix: IconButton(
+                          tooltip: _obscure ? 'Show password' : 'Hide password',
                           icon: Icon(
                               _obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined,
                               size: 18, color: AppColors.muted),
@@ -140,9 +171,8 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       ),
                       const SizedBox(height: 24),
-                      AppButton('Sign In',
-                          expand: true,
-                          onPressed: () => context.go(_homeRoute)),
+                      AppButton(_busy ? 'Signing In…' : 'Sign In',
+                          expand: true, onPressed: _signIn),
                       const SizedBox(height: 22),
                       Row(children: [
                         const Expanded(child: Divider()),
@@ -160,14 +190,20 @@ class _LoginScreenState extends State<LoginScreen> {
                                 kind: AppBtnKind.ghost,
                                 icon: Icons.g_mobiledata,
                                 expand: true,
-                                onPressed: () => context.go(_homeRoute))),
+                                onPressed: () => ScaffoldMessenger.of(context)
+                                    .showSnackBar(const SnackBar(
+                                        content: Text(
+                                            'Google sign-in is coming soon'))))),
                         const SizedBox(width: 12),
                         Expanded(
                             child: AppButton('SSO',
                                 kind: AppBtnKind.ghost,
                                 icon: Icons.account_balance_outlined,
                                 expand: true,
-                                onPressed: () => context.go(_homeRoute))),
+                                onPressed: () => ScaffoldMessenger.of(context)
+                                    .showSnackBar(const SnackBar(
+                                        content:
+                                            Text('SSO is coming soon'))))),
                       ]),
                     ],
                   ),

@@ -47,6 +47,7 @@ class WizardScaffold extends StatelessWidget {
       appBar: AppBar(
         backgroundColor: AppColors.background,
         leading: IconButton(
+          tooltip: 'Back',
           icon: const Icon(Icons.arrow_back),
           onPressed: () =>
               backRoute != null ? context.go(backRoute!) : context.go('/dashboard'),
@@ -150,33 +151,49 @@ class _BottomBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: 14),
       decoration: const BoxDecoration(
         color: AppColors.background,
         border: Border(top: BorderSide(color: AppColors.outline)),
       ),
       child: SafeArea(
         top: false,
-        child: Row(children: [
-          if (backRoute != null)
-            AppButton('Back',
-                kind: AppBtnKind.ghost,
-                icon: Icons.chevron_left,
-                onPressed: () => context.go(backRoute!)),
-          const Spacer(),
-          if (showSaveDraft)
-            TextButton(
-                onPressed: () => context.go('/dashboard'),
-                child: Text('Save Draft',
-                    style: AppTheme.mono(12, FontWeight.w500,
-                        color: AppColors.onSurfaceVariant))),
-          const SizedBox(width: 12),
-          AppButton(nextLabel,
-              kind: nextKind,
-              trailingIcon: nextIcon,
-              onPressed: onNext ??
-                  (nextRoute == null ? null : () => context.go(nextRoute!))),
-        ]),
+        child: LayoutBuilder(builder: (context, c) {
+          // Below ~420dp the three actions don't fit on one row: drop the
+          // secondary "Save Draft" and shorten the primary label.
+          final tight = c.maxWidth < 420;
+          final pad = tight ? 12.0 : AppSpacing.lg;
+          final label = tight && nextLabel == 'Save & Continue'
+              ? 'Continue'
+              : nextLabel;
+          return Padding(
+            padding: EdgeInsets.symmetric(horizontal: pad, vertical: 14),
+            child: Row(children: [
+              if (backRoute != null)
+                AppButton('Back',
+                    kind: AppBtnKind.ghost,
+                    icon: Icons.chevron_left,
+                    onPressed: () => context.go(backRoute!)),
+              const Spacer(),
+              if (showSaveDraft && !tight) ...[
+                TextButton(
+                    onPressed: () => context.go('/dashboard'),
+                    child: Text('Save Draft',
+                        style: AppTheme.mono(12, FontWeight.w500,
+                            color: AppColors.onSurfaceVariant))),
+                const SizedBox(width: 12),
+              ],
+              Flexible(
+                child: AppButton(label,
+                    kind: nextKind,
+                    trailingIcon: nextIcon,
+                    onPressed: onNext ??
+                        (nextRoute == null
+                            ? null
+                            : () => context.go(nextRoute!))),
+              ),
+            ]),
+          );
+        }),
       ),
     );
   }
@@ -196,7 +213,7 @@ class SelectTile extends StatelessWidget {
       borderRadius: BorderRadius.circular(AppRadius.sm),
       child: Container(
         alignment: Alignment.center,
-        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
         decoration: BoxDecoration(
           color: selected
               ? AppColors.primaryStrong.withValues(alpha: 0.16)
@@ -205,10 +222,14 @@ class SelectTile extends StatelessWidget {
           border: Border.all(
               color: selected ? AppColors.primary : AppColors.outlineStrong),
         ),
-        child: Text(label,
-            style: AppTheme.mono(13, FontWeight.w500,
-                color: selected ? AppColors.primary : AppColors.onSurfaceVariant,
-                ls: 0.5)),
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(label,
+              maxLines: 1,
+              style: AppTheme.mono(13, FontWeight.w500,
+                  color: selected ? AppColors.primary : AppColors.onSurfaceVariant,
+                  ls: 0.5)),
+        ),
       ),
     );
   }

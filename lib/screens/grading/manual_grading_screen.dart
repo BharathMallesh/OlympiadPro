@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 import '../../app/theme.dart';
-import '../../data/mock.dart';
+import '../../data/repo.dart';
 import '../../widgets/common.dart';
+import '../../widgets/math_text.dart';
 
+/// Manual grading backed by the real API: loads the submission's answers
+/// alongside the exam questions, lets the teacher award marks per question,
+/// and submits the grades (the backend rolls them up into the final score).
 class ManualGradingScreen extends StatefulWidget {
   const ManualGradingScreen({super.key, this.submissionId = ''});
   final String submissionId;
@@ -11,302 +15,263 @@ class ManualGradingScreen extends StatefulWidget {
 }
 
 class _ManualGradingScreenState extends State<ManualGradingScreen> {
-  double _marks = 6;
-  String _classification = '';
+  Map<String, dynamic>? _submission;
+  List<dynamic> _answers = [];
+  List<dynamic> _questions = [];
+  final Map<String, double> _awarded = {}; // question_id -> marks
+  bool _loading = true;
+  bool _saving = false;
+  String? _error;
 
-  String get _studentName {
-    for (final s in Mock.submissions) {
-      if (s.student.id == widget.submissionId) return s.student.name;
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final detail = await Repo.submission(widget.submissionId);
+      final submission = detail['submission'] as Map<String, dynamic>;
+      final questions =
+          await Repo.examQuestions(submission['exam_id'] as String);
+      if (!mounted) return;
+      setState(() {
+        _submission = submission;
+        _answers = detail['answers'] as List<dynamic>;
+        _questions = questions;
+        for (final a in _answers) {
+          final m = a as Map<String, dynamic>;
+          if (m['awarded_marks'] != null) {
+            _awarded[m['question_id'] as String] =
+                (m['awarded_marks'] as num).toDouble();
+          }
+        }
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e.toString();
+        _loading = false;
+      });
     }
-    return 'Arjun Mehta';
+  }
+
+  Map<String, dynamic>? _questionFor(String id) {
+    for (final q in _questions) {
+      if (q['id'] == id) return q as Map<String, dynamic>;
+    }
+    return null;
+  }
+
+  String _renderAnswer(Map<String, dynamic> answer, Map<String, dynamic>? q) {
+    final selected = answer['selected'];
+    if (selected is List && q != null) {
+      final options = (q['options'] as List? ?? []);
+      final picked = [
+        for (final i in selected)
+          if (i is num && i.toInt() < options.length)
+            options[i.toInt()]['text'] as String? ?? '?'
+      ];
+      return picked.isEmpty ? 'No option selected' : picked.join(', ');
+    }
+    if (answer['value'] != null) return '${answer['value']}';
+    if (answer['text'] != null) return '${answer['text']}';
+    return answer.toString();
+  }
+
+  Future<void> _submit() async {
+    if (_saving) return;
+    setState(() => _saving = true);
+    try {
+      final items = [
+        for (final e in _awarded.entries)
+          {'question_id': e.key, 'awarded_marks': e.value.round()}
+      ];
+      final updated = await Repo.grade(widget.submissionId, items);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(
+                'Graded · final score ${updated['score']}/${updated['max_score']}')));
+        popOrGo(context, '/grading/submissions');
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(e.toString()), backgroundColor: AppColors.error));
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final wide = isWide(context);
     return PopRedirect(
       fallbackRoute: '/grading/submissions',
       child: Scaffold(
-      backgroundColor: AppColors.scaffold,
-      appBar: AppBar(
-        backgroundColor: AppColors.background,
-        leading: IconButton(
-            icon: const Icon(Icons.arrow_back),
-            onPressed: () => popOrGo(context, '/grading/submissions')),
-        titleSpacing: 0,
-        title: Row(children: [
-          Text('Manual Grading',
+        backgroundColor: AppColors.scaffold,
+        appBar: AppBar(
+          backgroundColor: AppColors.background,
+          leading: IconButton(
+              tooltip: 'Back',
+              icon: const Icon(Icons.arrow_back),
+              onPressed: () => popOrGo(context, '/grading/submissions')),
+          titleSpacing: 0,
+          title: Text('Manual Grading',
               style: Theme.of(context).textTheme.titleLarge),
-          const SizedBox(width: 12),
-          Flexible(
-            child: Text('· $_studentName',
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.bodyMedium),
-          ),
-        ]),
-        actions: [
-          StatusChip('Live Grading Session',
-              color: AppColors.success, icon: Icons.circle),
-          const SizedBox(width: 16),
-        ],
+          actions: [
+            if (_submission != null)
+              StatusChip(
+                  (_submission!['status'] as String).replaceAll('_', ' '),
+                  color: AppColors.secondary),
+            const SizedBox(width: 16),
+          ],
+        ),
+        body: _loading
+            ? const Center(child: CircularProgressIndicator())
+            : _error != null
+                ? Center(
+                    child: Column(mainAxisSize: MainAxisSize.min, children: [
+                    Text(_error!,
+                        style: Theme.of(context).textTheme.bodyMedium),
+                    const SizedBox(height: 12),
+                    AppButton('Retry', onPressed: _load),
+                  ]))
+                : Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 860),
+                      child: ListView(
+                        padding: const EdgeInsets.all(AppSpacing.lg),
+                        children: [
+                          if (_answers.isEmpty)
+                            AppCard(
+                              child: Column(children: [
+                                const Icon(Icons.inbox_outlined,
+                                    color: AppColors.muted, size: 36),
+                                const SizedBox(height: 10),
+                                Text(
+                                    'This student has not answered any questions yet.',
+                                    style:
+                                        Theme.of(context).textTheme.bodyMedium),
+                              ]),
+                            ),
+                          for (var i = 0; i < _answers.length; i++)
+                            _AnswerCard(
+                              index: i,
+                              answer: _answers[i] as Map<String, dynamic>,
+                              question: _questionFor((_answers[i]
+                                  as Map<String, dynamic>)['question_id']
+                                  as String),
+                              awarded: _awarded[(_answers[i]
+                                  as Map<String, dynamic>)['question_id']],
+                              renderAnswer: _renderAnswer,
+                              onAward: (qid, v) =>
+                                  setState(() => _awarded[qid] = v),
+                            ),
+                          const SizedBox(height: 10),
+                          if (_answers.isNotEmpty)
+                            AppButton(
+                                _saving
+                                    ? 'Submitting…'
+                                    : 'Submit Grades & Finalize',
+                                kind: AppBtnKind.secondary,
+                                expand: true,
+                                trailingIcon: Icons.check_circle_outline,
+                                onPressed: _submit),
+                          const SizedBox(height: 30),
+                        ],
+                      ),
+                    ),
+                  ),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(AppSpacing.lg),
-        child: Flex(
-          direction: wide ? Axis.horizontal : Axis.vertical,
+    );
+  }
+}
+
+class _AnswerCard extends StatelessWidget {
+  const _AnswerCard({
+    required this.index,
+    required this.answer,
+    required this.question,
+    required this.awarded,
+    required this.renderAnswer,
+    required this.onAward,
+  });
+  final int index;
+  final Map<String, dynamic> answer;
+  final Map<String, dynamic>? question;
+  final double? awarded;
+  final String Function(Map<String, dynamic>, Map<String, dynamic>?)
+      renderAnswer;
+  final void Function(String, double) onAward;
+
+  @override
+  Widget build(BuildContext context) {
+    final qid = answer['question_id'] as String;
+    final maxMarks = ((question?['marks'] as num?) ?? 4).toDouble();
+    final autoGraded = answer['auto_graded'] as bool? ?? false;
+    final value = (awarded ?? 0).clamp(0, maxMarks).toDouble();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: AppCard(
+        child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Left: handwritten proof + scratchpad
-            Expanded(
-              flex: wide ? 3 : 0,
-              child: Column(
-                children: [
-                  AppCard(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const SectionTitle('Handwritten Proof',
-                            icon: Icons.draw_outlined),
-                        const SizedBox(height: 14),
-                        Container(
-                          height: 280,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF14110A),
-                            borderRadius: BorderRadius.circular(AppRadius.md),
-                            border: Border.all(color: AppColors.outline),
-                          ),
-                          child: const Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(Icons.gesture, color: AppColors.muted, size: 40),
-                                SizedBox(height: 10),
-                                Text('Scanned proof — student handwriting',
-                                    style: TextStyle(color: AppColors.muted)),
-                              ],
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        // Annotation toolbar
-                        Wrap(spacing: 8, children: [
-                          for (final icon in const [
-                            Icons.edit, Icons.highlight, Icons.straighten,
-                            Icons.crop_free, Icons.zoom_in, Icons.undo, Icons.redo,
-                          ])
-                            _ToolBtn(icon),
-                          const Spacer(),
-                          _ToolBtn(Icons.check_circle, color: AppColors.success),
-                          _ToolBtn(Icons.cancel, color: AppColors.error),
-                        ]),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  AppCard(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const SectionTitle('Digital Scratchpad',
-                            icon: Icons.functions),
-                        const SizedBox(height: 14),
-                        Container(
-                          height: 150,
-                          decoration: BoxDecoration(
-                            color: Colors.black,
-                            borderRadius: BorderRadius.circular(AppRadius.md),
-                            border: Border.all(color: AppColors.outline),
-                          ),
-                          child: const Center(
-                            child: Icon(Icons.show_chart,
-                                color: AppColors.primary, size: 36),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
+            Row(children: [
+              Text('Q${index + 1}',
+                  style: AppTheme.mono(13, FontWeight.w700,
+                      color: AppColors.primary)),
+              const SizedBox(width: 10),
+              StatusChip(question?['qtype'] as String? ?? 'question',
+                  color: AppColors.onSurfaceVariant),
+              const Spacer(),
+              if (autoGraded)
+                StatusChip('Auto-graded', color: AppColors.success,
+                    icon: Icons.bolt),
+            ]),
+            const SizedBox(height: 10),
+            MixedMathText(question?['prompt'] as String? ?? 'Question unavailable',
+                fontSize: 15),
+            const SizedBox(height: 12),
+            const FieldLabel("Student's Answer"),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.surfaceContainer,
+                borderRadius: BorderRadius.circular(AppRadius.md),
+                border: Border.all(color: AppColors.outline),
               ),
+              child: Text(
+                  renderAnswer(
+                      (answer['answer'] as Map).cast<String, dynamic>(),
+                      question),
+                  style: Theme.of(context).textTheme.bodyLarge),
             ),
-            SizedBox(width: wide ? 20 : 0, height: wide ? 0 : 16),
-
-            // Right: step-by-step marking
-            Expanded(
-              flex: wide ? 2 : 0,
-              child: Column(
-                children: [
-                  AppCard(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const SectionTitle('Step-by-Step Marking',
-                            icon: Icons.checklist),
-                        const SizedBox(height: 16),
-                        _MarkStep(
-                          ok: true,
-                          title: '1. Boundary Condition Definition',
-                          detail: 'Correctly identified the limits of integration '
-                              'for the multi-variable surface.',
-                          marks: '+2.0',
-                        ),
-                        _MarkStep(
-                          ok: false,
-                          title: '2. Partial Derivatives Expansion',
-                          detail: 'Missed the chain rule application on the third term.',
-                          marks: '-1.5',
-                        ),
-                        _MarkStep(
-                          ok: true,
-                          title: '3. Convergence Test Verification',
-                          detail: 'Applied ratio test correctly to confirm convergence.',
-                          marks: '+2.0',
-                        ),
-                        const SizedBox(height: 6),
-                        TextButton.icon(
-                          onPressed: () {},
-                          icon: const Icon(Icons.add_circle_outline, size: 16),
-                          label: const Text('Add Marking Criteria'),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  AppCard(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        FieldLabel('Error Classification'),
-                        const SizedBox(height: 10),
-                        Wrap(spacing: 10, runSpacing: 10, children: [
-                          for (final (label, color) in const [
-                            ('Calculation Slip', AppColors.secondary),
-                            ('Conceptual Gap', AppColors.error),
-                            ('Logical Fallacy', AppColors.primary),
-                          ])
-                            _ErrChip(
-                              label: label, color: color,
-                              selected: _classification == label,
-                              onTap: () => setState(() => _classification = label),
-                            ),
-                        ]),
-                        const SizedBox(height: 20),
-                        Row(children: [
-                          FieldLabel('Marks Awarded'),
-                          const Spacer(),
-                          Text('${_marks.toStringAsFixed(1)} / 10.0',
-                              style: AppTheme.mono(16, FontWeight.w700,
-                                  color: AppColors.secondary)),
-                        ]),
-                        Slider(
-                          value: _marks,
-                          min: 0, max: 10, divisions: 20,
-                          activeColor: AppColors.secondary,
-                          onChanged: (v) => setState(() => _marks = v),
-                        ),
-                        const SizedBox(height: 8),
-                        AppButton('Submit & Next Student',
-                            kind: AppBtnKind.secondary,
-                            expand: true,
-                            trailingIcon: Icons.arrow_forward,
-                            onPressed: () =>
-                                popOrGo(context, '/grading/submissions')),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
+            const SizedBox(height: 14),
+            Row(children: [
+              const FieldLabel('Marks Awarded'),
+              const Spacer(),
+              Text('${value.toStringAsFixed(0)} / ${maxMarks.toStringAsFixed(0)}',
+                  style: AppTheme.mono(15, FontWeight.w700,
+                      color: AppColors.secondary)),
+            ]),
+            Slider(
+              value: value,
+              min: 0,
+              max: maxMarks,
+              divisions: maxMarks.toInt(),
+              activeColor: AppColors.secondary,
+              onChanged: autoGraded ? null : (v) => onAward(qid, v),
             ),
           ],
         ),
-      ),
-    ),
-    );
-  }
-}
-
-class _ToolBtn extends StatelessWidget {
-  const _ToolBtn(this.icon, {this.color});
-  final IconData icon;
-  final Color? color;
-  @override
-  Widget build(BuildContext context) => Container(
-        margin: const EdgeInsets.only(bottom: 6),
-        padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(
-          color: AppColors.surfaceContainer,
-          borderRadius: BorderRadius.circular(AppRadius.sm),
-          border: Border.all(color: AppColors.outline),
-        ),
-        child: Icon(icon, size: 16, color: color ?? AppColors.onSurfaceVariant),
-      );
-}
-
-class _MarkStep extends StatelessWidget {
-  const _MarkStep({
-    required this.ok, required this.title,
-    required this.detail, required this.marks,
-  });
-  final bool ok;
-  final String title, detail, marks;
-  @override
-  Widget build(BuildContext context) {
-    final color = ok ? AppColors.success : AppColors.error;
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceContainer,
-        borderRadius: BorderRadius.circular(AppRadius.md),
-        border: Border(left: BorderSide(color: color, width: 3)),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(ok ? Icons.check_circle : Icons.cancel, size: 16, color: color),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title,
-                    style: Theme.of(context).textTheme.bodyLarge
-                        ?.copyWith(fontSize: 13, fontWeight: FontWeight.w600)),
-                const SizedBox(height: 2),
-                Text(detail, style: Theme.of(context).textTheme.bodySmall),
-              ],
-            ),
-          ),
-          const SizedBox(width: 8),
-          Text(marks, style: AppTheme.mono(13, FontWeight.w700, color: color)),
-        ],
-      ),
-    );
-  }
-}
-
-class _ErrChip extends StatelessWidget {
-  const _ErrChip({
-    required this.label, required this.color,
-    required this.selected, required this.onTap,
-  });
-  final String label;
-  final Color color;
-  final bool selected;
-  final VoidCallback onTap;
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(AppRadius.sm),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: selected ? 0.25 : 0.1),
-          borderRadius: BorderRadius.circular(AppRadius.sm),
-          border: Border.all(color: color.withValues(alpha: selected ? 1 : 0.4)),
-        ),
-        child: Text(label,
-            style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w600)),
       ),
     );
   }

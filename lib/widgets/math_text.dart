@@ -53,3 +53,49 @@ class MathPanel extends StatelessWidget {
     );
   }
 }
+
+/// Mixed prose + inline LaTeX: plain text renders as normal text, anything
+/// inside $...$ (or $$...$$) renders through KaTeX. AI-imported prompts are
+/// usually this shape ("Find $f'(x)$ when ...").
+class MixedMathText extends StatelessWidget {
+  const MixedMathText(this.source,
+      {super.key, this.fontSize = 15, this.color, this.style});
+  final String source;
+  final double fontSize;
+  final Color? color;
+  final TextStyle? style;
+
+  static final _mathSegment = RegExp(r'\$\$(.+?)\$\$|\$(.+?)\$', dotAll: true);
+
+  @override
+  Widget build(BuildContext context) {
+    final base = style ??
+        Theme.of(context).textTheme.bodyLarge?.copyWith(
+            fontSize: fontSize, color: color, height: 1.5) ??
+        TextStyle(fontSize: fontSize, color: color);
+    if (!source.contains(r'$')) return Text(source, style: base);
+
+    final spans = <InlineSpan>[];
+    var cursor = 0;
+    for (final m in _mathSegment.allMatches(source)) {
+      if (m.start > cursor) {
+        spans.add(TextSpan(text: source.substring(cursor, m.start)));
+      }
+      final tex = (m.group(1) ?? m.group(2) ?? '').trim();
+      spans.add(WidgetSpan(
+        alignment: PlaceholderAlignment.middle,
+        child: Math.tex(
+          tex,
+          textStyle: TextStyle(
+              fontSize: fontSize, color: color ?? const Color(0xFFF5F5F5)),
+          onErrorFallback: (_) => Text('\$$tex\$', style: base),
+        ),
+      ));
+      cursor = m.end;
+    }
+    if (cursor < source.length) {
+      spans.add(TextSpan(text: source.substring(cursor)));
+    }
+    return Text.rich(TextSpan(style: base, children: spans));
+  }
+}

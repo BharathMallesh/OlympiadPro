@@ -28,6 +28,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         appBar: AppBar(
           backgroundColor: AppColors.background,
           leading: IconButton(
+              tooltip: 'Back',
               icon: const Icon(Icons.arrow_back),
               onPressed: () => popOrGo(context, '/login')),
         ),

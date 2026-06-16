@@ -29,6 +29,7 @@ class _AcademicInterestsScreenState extends State<AcademicInterestsScreen> {
         appBar: AppBar(
           backgroundColor: AppColors.background,
           leading: IconButton(
+              tooltip: 'Back',
               icon: const Icon(Icons.arrow_back),
               onPressed: () => context.go('/student/register')),
           title: Text('OlympiadPro',

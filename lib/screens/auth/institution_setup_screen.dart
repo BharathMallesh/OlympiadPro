@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../app/theme.dart';
+import '../../data/drafts.dart';
 import '../../widgets/common.dart';
 
 class InstitutionSetupScreen extends StatefulWidget {
@@ -10,7 +11,29 @@ class InstitutionSetupScreen extends StatefulWidget {
 }
 
 class _InstitutionSetupScreenState extends State<InstitutionSetupScreen> {
-  String? _selectedInstitute = 'Excellence Academy';
+  String? _selectedInstitute;
+  late final _institution =
+      TextEditingController(text: onboardingDraft.institutionName);
+  late final _className = TextEditingController(text: onboardingDraft.className);
+  late final _grade = TextEditingController(text: onboardingDraft.grade);
+  late final _section = TextEditingController(text: onboardingDraft.section);
+
+  void _continue() {
+    final institution = _selectedInstitute ?? _institution.text.trim();
+    if (institution.isEmpty || _className.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Institution and class name are required'),
+        backgroundColor: AppColors.error,
+      ));
+      return;
+    }
+    onboardingDraft
+      ..institutionName = institution
+      ..className = _className.text.trim()
+      ..grade = _grade.text.trim()
+      ..section = _section.text.trim();
+    context.go('/register/finalize');
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -21,6 +44,7 @@ class _InstitutionSetupScreenState extends State<InstitutionSetupScreen> {
       appBar: AppBar(
         backgroundColor: AppColors.background,
         leading: IconButton(
+            tooltip: 'Back',
             icon: const Icon(Icons.arrow_back),
             onPressed: () => context.go('/register')),
         title: Text('Teacher Onboarding',
@@ -68,10 +92,11 @@ class _InstitutionSetupScreenState extends State<InstitutionSetupScreen> {
                       const SectionTitle('Institution Selection',
                           icon: Icons.account_balance_outlined),
                       const SizedBox(height: 16),
-                      const FieldLabel('Search Registered Institutes'),
-                      const AppInput(
-                          icon: Icons.search,
-                          hint: 'e.g., Excellence Academy, IIT-JEE...'),
+                      const FieldLabel('Institution Name'),
+                      AppInput(
+                          controller: _institution,
+                          icon: Icons.account_balance_outlined,
+                          hint: 'e.g., Excellence Academy'),
                       const SizedBox(height: 14),
                       Wrap(spacing: 10, runSpacing: 10, children: [
                         for (final name in ['Excellence Academy', 'IIT-JEE Center'])
@@ -95,15 +120,17 @@ class _InstitutionSetupScreenState extends State<InstitutionSetupScreen> {
                       const SectionTitle('Class Creation', icon: Icons.groups_outlined),
                       const SizedBox(height: 16),
                       const FieldLabel('Class Name'),
-                      const AppInput(hint: 'Physics Advanced - Sec B'),
+                      AppInput(
+                          controller: _className,
+                          hint: 'Physics Advanced - Sec B'),
                       const SizedBox(height: 16),
                       Row(children: [
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
-                            children: const [
-                              FieldLabel('Grade'),
-                              AppInput(hint: 'Grade 12'),
+                            children: [
+                              const FieldLabel('Grade'),
+                              AppInput(controller: _grade, hint: 'Grade 12'),
                             ],
                           ),
                         ),
@@ -111,9 +138,9 @@ class _InstitutionSetupScreenState extends State<InstitutionSetupScreen> {
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
-                            children: const [
-                              FieldLabel('Section'),
-                              AppInput(hint: 'B'),
+                            children: [
+                              const FieldLabel('Section'),
+                              AppInput(controller: _section, hint: 'B'),
                             ],
                           ),
                         ),
@@ -130,7 +157,7 @@ class _InstitutionSetupScreenState extends State<InstitutionSetupScreen> {
                   const Spacer(),
                   AppButton('Continue',
                       trailingIcon: Icons.arrow_forward,
-                      onPressed: () => context.go('/register/finalize')),
+                      onPressed: _continue),
                 ]),
               ],
             ),

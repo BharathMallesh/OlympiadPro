@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../app/theme.dart';
+import '../../data/api.dart';
 import '../../widgets/common.dart';
 
 /// Bottom-nav scaffold for the student side (Home / Practice / Exams /
@@ -39,9 +40,16 @@ class StudentShell extends StatelessWidget {
         backgroundColor: AppColors.scaffold,
         appBar: AppBar(
           backgroundColor: AppColors.background,
-          leading: leading,
-          automaticallyImplyLeading: leading != null,
-          titleSpacing: leading == null ? 16 : 0,
+          leading: leading ??
+              (Navigator.of(context).canPop()
+                  ? IconButton(
+                      tooltip: 'Back',
+                      icon: const Icon(Icons.arrow_back),
+                      onPressed: () => Navigator.of(context).pop())
+                  : null),
+          automaticallyImplyLeading: false,
+          titleSpacing:
+              (leading == null && !Navigator.of(context).canPop()) ? 16 : 0,
           title: Row(children: [
             if (leading == null) ...[
               const Icon(Icons.school_rounded, color: AppColors.primary, size: 22),
@@ -58,9 +66,10 @@ class StudentShell extends StatelessWidget {
               onPressed: () => context.push('/notifications?role=student'),
               icon: const Icon(Icons.notifications_none, size: 21),
             ),
-            const Padding(
-              padding: EdgeInsets.only(right: 14),
-              child: InitialsAvatar('Rohan Iyer', size: 32, color: AppColors.teal),
+            Padding(
+              padding: const EdgeInsets.only(right: 14),
+              child: InitialsAvatar(api.displayName ?? 'Student',
+                  size: 32, color: AppColors.teal),
             ),
           ],
         ),

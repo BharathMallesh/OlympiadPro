@@ -13,6 +13,23 @@ class ExamDetailsScreen extends StatefulWidget {
 class _ExamDetailsScreenState extends State<ExamDetailsScreen> {
   static const _categories = ['JEE', 'NEET', 'PG CET', 'CBSE', 'State Board', 'Add Other'];
 
+  final TextEditingController _title =
+      TextEditingController(text: examDraft.title);
+  final TextEditingController _description =
+      TextEditingController(text: examDraft.description);
+  final TextEditingController _duration =
+      TextEditingController(text: examDraft.duration.toString());
+
+  @override
+  void initState() {
+    super.initState();
+    _title.addListener(() => examDraft.title = _title.text);
+    _description
+        .addListener(() => examDraft.description = _description.text);
+    _duration.addListener(
+        () => examDraft.duration = int.tryParse(_duration.text) ?? 90);
+  }
+
   @override
   Widget build(BuildContext context) {
     return WizardScaffold(
@@ -34,34 +51,38 @@ class _ExamDetailsScreenState extends State<ExamDetailsScreen> {
             const FieldLabel('Exam Title'),
             AppInput(
               hint: 'e.g. Advanced Calculus Olympiad 2024',
-              controller: TextEditingController(text: examDraft.title),
+              controller: _title,
             ),
             const SizedBox(height: 6),
             Text('Ensure titles are descriptive for student dashboards.',
                 style: Theme.of(context).textTheme.bodySmall),
             const SizedBox(height: 18),
             const FieldLabel('Exam Category / Board'),
-            GridView.count(
-              crossAxisCount: 3,
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              mainAxisSpacing: 10,
-              crossAxisSpacing: 10,
-              childAspectRatio: 3,
-              children: [
-                for (final c in _categories)
-                  SelectTile(c,
-                      selected: examDraft.board == c,
-                      onTap: () => setState(() => examDraft.board = c)),
-              ],
-            ),
+            LayoutBuilder(builder: (context, c) {
+              final cols = c.maxWidth >= 560 ? 3 : 2;
+              return GridView.count(
+                crossAxisCount: cols,
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                mainAxisSpacing: 10,
+                crossAxisSpacing: 10,
+                childAspectRatio: cols == 3 ? 3 : 3.4,
+                children: [
+                  for (final cat in _categories)
+                    SelectTile(cat,
+                        selected: examDraft.board == cat,
+                        onTap: () => setState(() => examDraft.board = cat)),
+                ],
+              );
+            }),
             const SizedBox(height: 18),
             const FieldLabel('Target Audience'),
             const AppInput(
                 hint: 'Select Category First', icon: Icons.groups_outlined),
             const SizedBox(height: 18),
             const FieldLabel('Exam Description'),
-            const AppInput(
+            AppInput(
+                controller: _description,
                 hint: 'Enter instructions, syllabus coverage, or required materials...',
                 maxLines: 4),
             const SizedBox(height: 18),
@@ -72,7 +93,7 @@ class _ExamDetailsScreenState extends State<ExamDetailsScreen> {
                   children: [
                     const FieldLabel('Duration (min)'),
                     AppInput(
-                        controller: TextEditingController(text: '90'),
+                        controller: _duration,
                         suffix: const Icon(Icons.schedule, size: 18, color: AppColors.muted)),
                   ],
                 ),

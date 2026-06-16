@@ -1,7 +1,10 @@
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../app/theme.dart';
+import '../../data/api.dart';
 import '../../data/mock.dart';
+import '../../data/repo.dart';
 import '../../widgets/common.dart';
 
 class UploadPaperScreen extends StatefulWidget {
@@ -11,6 +14,36 @@ class UploadPaperScreen extends StatefulWidget {
 }
 
 class _UploadPaperScreenState extends State<UploadPaperScreen> {
+  bool _uploading = false;
+
+  Future<void> _pickAndUpload() async {
+    if (_uploading) return;
+    final picked = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['pdf'],
+      withData: true,
+    );
+    final file = picked?.files.firstOrNull;
+    if (file == null || file.bytes == null) return;
+    setState(() => _uploading = true);
+    try {
+      final job = await Repo.uploadPaper(file.bytes!, file.name);
+      examDraft
+        ..fileName = file.name
+        ..importJobId = job['id'] as String
+        ..touch();
+      if (mounted) setState(() {});
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('Upload failed: $e'),
+            backgroundColor: AppColors.error));
+      }
+    } finally {
+      if (mounted) setState(() => _uploading = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final wide = isWide(context);
@@ -25,10 +58,10 @@ class _UploadPaperScreenState extends State<UploadPaperScreen> {
         title: Text('OlympiadPro',
             style: Theme.of(context).textTheme.titleLarge
                 ?.copyWith(color: AppColors.primary, fontWeight: FontWeight.w700)),
-        actions: const [
+        actions: [
           Padding(
-            padding: EdgeInsets.only(right: 16),
-            child: InitialsAvatar('Aris Thorne', size: 32),
+            padding: const EdgeInsets.only(right: 16),
+            child: InitialsAvatar(api.displayName ?? 'Educator', size: 32),
           ),
         ],
       ),
@@ -80,9 +113,14 @@ class _UploadPaperScreenState extends State<UploadPaperScreen> {
                       flex: wide ? 3 : 0,
                       child: Column(
                         children: [
-                          _DropZone(),
+                          _DropZone(
+                              uploading: _uploading, onPick: _pickAndUpload),
                           const SizedBox(height: 16),
-                          _UploadProgress(fileName: examDraft.fileName),
+                          if (examDraft.fileName.isNotEmpty)
+                            _UploadProgress(
+                                fileName: examDraft.fileName,
+                                uploading: _uploading,
+                                done: examDraft.importJobId != null),
                         ],
                       ),
                     ),
@@ -98,11 +136,16 @@ class _UploadPaperScreenState extends State<UploadPaperScreen> {
                           const SizedBox(height: 16),
                           _Instructions(),
                           const SizedBox(height: 16),
-                          AppButton('Continue to Processing',
+                          AppButton(
+                              examDraft.importJobId == null
+                                  ? 'Upload a PDF first'
+                                  : 'Continue to Processing',
                               kind: AppBtnKind.secondary,
                               expand: true,
                               trailingIcon: Icons.arrow_forward,
-                              onPressed: () => context.go('/wizard/ai-review')),
+                              onPressed: examDraft.importJobId == null
+                                  ? null
+                                  : () => context.go('/wizard/ai-review')),
                         ],
                       ),
                     ),
@@ -119,6 +162,9 @@ class _UploadPaperScreenState extends State<UploadPaperScreen> {
 }
 
 class _DropZone extends StatelessWidget {
+  const _DropZone({required this.uploading, required this.onPick});
+  final bool uploading;
+  final VoidCallback onPick;
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -150,8 +196,10 @@ class _DropZone extends StatelessWidget {
           Text('or drag and drop here',
               style: Theme.of(context).textTheme.bodyMedium),
           const SizedBox(height: 20),
-          AppButton('Browse Files',
-              kind: AppBtnKind.primary, icon: Icons.upload_file, onPressed: () {}),
+          AppButton(uploading ? 'Uploading…' : 'Browse Files',
+              kind: AppBtnKind.primary,
+              icon: Icons.upload_file,
+              onPressed: uploading ? null : onPick),
         ],
       ),
     );
@@ -159,10 +207,18 @@ class _DropZone extends StatelessWidget {
 }
 
 class _UploadProgress extends StatelessWidget {
-  const _UploadProgress({required this.fileName});
+  const _UploadProgress(
+      {required this.fileName, required this.uploading, required this.done});
   final String fileName;
+  final bool uploading;
+  final bool done;
   @override
   Widget build(BuildContext context) {
+    final label = uploading
+        ? 'Uploading…'
+        : done
+            ? 'Uploaded · queued for AI parsing'
+            : '';
     return AppCard(
       color: AppColors.surfaceContainer,
       child: Column(
@@ -174,12 +230,14 @@ class _UploadProgress extends StatelessWidget {
             Expanded(
                 child: Text(fileName,
                     style: Theme.of(context).textTheme.titleMedium)),
-            Text('Uploading... 65%',
+            Text(label,
                 style: AppTheme.mono(12, FontWeight.w600,
-                    color: AppColors.secondary)),
+                    color: done ? AppColors.success : AppColors.secondary)),
           ]),
           const SizedBox(height: 12),
-          const ProgressLine(0.65, color: AppColors.secondaryStrong, height: 6),
+          ProgressLine(done ? 1.0 : 0.4,
+              color: done ? AppColors.success : AppColors.secondaryStrong,
+              height: 6),
         ],
       ),
     );

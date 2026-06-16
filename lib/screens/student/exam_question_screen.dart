@@ -1,64 +1,198 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../app/theme.dart';
-import '../../data/store.dart';
+import '../../data/repo.dart';
 import '../../widgets/common.dart';
 import '../../widgets/math_text.dart';
 
+/// Live exam screen, fully backed by the API: starts/resumes the submission,
+/// renders backend questions (answer key never present), autosaves every
+/// answer, and submits for instant MCQ auto-grading.
 class ExamQuestionScreen extends StatefulWidget {
-  const ExamQuestionScreen({super.key});
+  const ExamQuestionScreen({super.key, required this.examId});
+  final String examId;
   @override
   State<ExamQuestionScreen> createState() => _ExamQuestionScreenState();
 }
 
 class _ExamQuestionScreenState extends State<ExamQuestionScreen> {
-  static const _total = 18;
-  static const _options = [r'\pi^2 / 2', r'\pi^2 / 4'];
-
-  int _question = 1;
-  final Map<int, int> _answers = {};
+  Map<String, dynamic>? _exam;
+  List<dynamic> _questions = [];
+  final Map<String, dynamic> _answers = {}; // question_id -> answer json
   final Set<int> _marked = {};
+  int _index = 0;
+  bool _loading = true;
+  String? _error;
+  bool _submitting = false;
 
-  int? get _selected => _answers[_question];
-  bool get _isMarked => _marked.contains(_question);
+  Timer? _ticker;
+  Duration _remaining = Duration.zero;
+
+  final _textCtrl = TextEditingController();
+
+  Map<String, dynamic>? get _q => _questions.isEmpty
+      ? null
+      : _questions[_index] as Map<String, dynamic>;
 
   @override
   void initState() {
     super.initState();
-    // #14 — restore autosaved progress if a previous attempt was interrupted.
-    final saved = AppStore.loadExamProgress();
-    if (saved != null) {
-      _question = saved.question;
-      _answers.addAll(saved.answers);
-      _marked.addAll(saved.marked);
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-              content: Text(
-                  'Resumed from autosave - your previous answers were restored.')));
+    _start();
+  }
+
+  @override
+  void dispose() {
+    _ticker?.cancel();
+    _textCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _start() async {
+    try {
+      final data = await Repo.startExam(widget.examId);
+      final exam = data['exam'] as Map<String, dynamic>;
+      final saved = data['saved_answers'] as List<dynamic>;
+      if (!mounted) return;
+      setState(() {
+        _exam = exam;
+        _questions = data['questions'] as List<dynamic>;
+        for (final s in saved) {
+          _answers[(s as Map<String, dynamic>)['question_id'] as String] =
+              s['answer'];
         }
+        _remaining = Duration(minutes: (exam['duration_min'] as num).toInt());
+        _loading = false;
+      });
+      _syncTextField();
+      _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
+        if (_remaining.inSeconds <= 0) {
+          _ticker?.cancel();
+          _submit(auto: true);
+          return;
+        }
+        setState(() => _remaining -= const Duration(seconds: 1));
+      });
+      if (saved.isNotEmpty && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Resumed — your saved answers were restored.')));
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e.toString();
+        _loading = false;
       });
     }
   }
 
-  void _autosave() => AppStore.saveExamProgress(
-      question: _question, answers: _answers, marked: _marked);
+  String get _clock {
+    final h = _remaining.inHours.toString().padLeft(2, '0');
+    final m = (_remaining.inMinutes % 60).toString().padLeft(2, '0');
+    final s = (_remaining.inSeconds % 60).toString().padLeft(2, '0');
+    return '$h:$m:$s';
+  }
 
-  void _jumpTo(int q) {
-    setState(() => _question = q);
-    _autosave();
+  Future<void> _saveAnswer(String questionId, dynamic answer) async {
+    setState(() => _answers[questionId] = answer);
+    try {
+      await Repo.saveAnswers(widget.examId, [
+        {'question_id': questionId, 'answer': answer},
+      ]);
+    } catch (_) {
+      // Network blip — answer stays locally and re-saves on next change.
+    }
+  }
+
+  void _syncTextField() {
+    final q = _q;
+    if (q == null) return;
+    final ans = _answers[q['question_id']];
+    final isMcq = q['qtype'] == 'multiple_choice';
+    if (!isMcq) {
+      _textCtrl.text = (ans?['value'] ?? ans?['text'] ?? '').toString();
+    }
+  }
+
+  void _jumpTo(int i) {
+    setState(() => _index = i);
+    _syncTextField();
   }
 
   void _next() {
-    if (_question >= _total) {
+    if (_index >= _questions.length - 1) {
       _submit();
       return;
     }
-    setState(() => _question++);
-    _autosave();
+    _jumpTo(_index + 1);
   }
 
-  /// #8 - question palette bottom sheet.
+  Future<void> _submit({bool auto = false}) async {
+    if (_submitting) return;
+    if (!auto) {
+      final answered = _answers.length;
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: AppColors.surfaceHigh,
+          title: const Text('Submit Exam?'),
+          content: Text('Answered: $answered / ${_questions.length}\n'
+              'Marked for review: ${_marked.length}\n'
+              'Unanswered: ${_questions.length - answered}\n\n'
+              'Once submitted, answers cannot be changed.'),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Keep Working')),
+            TextButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('Submit',
+                    style: TextStyle(color: AppColors.secondary))),
+          ],
+        ),
+      );
+      if (ok != true) return;
+    }
+    setState(() => _submitting = true);
+    try {
+      final result = await Repo.submitExam(widget.examId);
+      _ticker?.cancel();
+      if (!mounted) return;
+      final needsReview = result['needs_manual_review'] as bool? ?? false;
+      await showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: AppColors.surfaceHigh,
+          title: Row(children: [
+            const Icon(Icons.check_circle, color: AppColors.success),
+            const SizedBox(width: 10),
+            const Text('Submitted!'),
+          ]),
+          content: Text(needsReview
+              ? 'Objective questions scored ${result['auto_score']} marks '
+                  'instantly. The rest is with your teacher for grading — '
+                  'check back for your final score.'
+              : 'Final score: ${result['auto_score']} marks. '
+                  'All questions were auto-graded.'),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('View My Exams')),
+          ],
+        ),
+      );
+      if (mounted) context.go('/student/exams');
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(e.toString()), backgroundColor: AppColors.error));
+      }
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
+  }
+
   void _showPalette() {
     showModalBottomSheet(
       context: context,
@@ -70,8 +204,7 @@ class _ExamQuestionScreenState extends State<ExamQuestionScreen> {
         child: Padding(
           padding: const EdgeInsets.all(20),
           child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Text('Question Palette',
-                style: Theme.of(ctx).textTheme.titleLarge),
+            Text('Question Palette', style: Theme.of(ctx).textTheme.titleLarge),
             const SizedBox(height: 6),
             Wrap(spacing: 14, children: [
               _legend('Answered', AppColors.success),
@@ -86,37 +219,42 @@ class _ExamQuestionScreenState extends State<ExamQuestionScreen> {
               mainAxisSpacing: 10,
               crossAxisSpacing: 10,
               children: [
-                for (var q = 1; q <= _total; q++)
-                  InkWell(
-                    onTap: () {
-                      Navigator.pop(ctx);
-                      _jumpTo(q);
-                    },
-                    borderRadius: BorderRadius.circular(AppRadius.sm),
-                    child: Container(
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: _marked.contains(q)
-                            ? AppColors.secondaryStrong.withValues(alpha: 0.3)
-                            : _answers.containsKey(q)
-                                ? AppColors.success.withValues(alpha: 0.25)
-                                : AppColors.surfaceContainer,
-                        borderRadius: BorderRadius.circular(AppRadius.sm),
-                        border: Border.all(
-                            color: q == _question
-                                ? AppColors.primary
-                                : _marked.contains(q)
-                                    ? AppColors.secondary
-                                    : _answers.containsKey(q)
-                                        ? AppColors.success
-                                        : AppColors.outline,
-                            width: q == _question ? 2 : 1),
+                for (var i = 0; i < _questions.length; i++)
+                  Builder(builder: (context) {
+                    final qid = (_questions[i]
+                        as Map<String, dynamic>)['question_id'] as String;
+                    final answered = _answers.containsKey(qid);
+                    return InkWell(
+                      onTap: () {
+                        Navigator.pop(ctx);
+                        _jumpTo(i);
+                      },
+                      borderRadius: BorderRadius.circular(AppRadius.sm),
+                      child: Container(
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: _marked.contains(i)
+                              ? AppColors.secondaryStrong.withValues(alpha: 0.3)
+                              : answered
+                                  ? AppColors.success.withValues(alpha: 0.25)
+                                  : AppColors.surfaceContainer,
+                          borderRadius: BorderRadius.circular(AppRadius.sm),
+                          border: Border.all(
+                              color: i == _index
+                                  ? AppColors.primary
+                                  : _marked.contains(i)
+                                      ? AppColors.secondary
+                                      : answered
+                                          ? AppColors.success
+                                          : AppColors.outline,
+                              width: i == _index ? 2 : 1),
+                        ),
+                        child: Text('${i + 1}',
+                            style: AppTheme.mono(13, FontWeight.w600,
+                                color: AppColors.onSurface)),
                       ),
-                      child: Text('$q',
-                          style: AppTheme.mono(13, FontWeight.w600,
-                              color: AppColors.onSurface)),
-                    ),
-                  ),
+                    );
+                  }),
               ],
             ),
             const SizedBox(height: 8),
@@ -135,50 +273,50 @@ class _ExamQuestionScreenState extends State<ExamQuestionScreen> {
         Text(label, style: AppTheme.mono(9, FontWeight.w500)),
       ]);
 
-  void _submit() {
-    final answered = _answers.length;
-    final marked = _marked.length;
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.surfaceHigh,
-        title: const Text('Submit Exam?'),
-        content: Text(
-            'Answered: $answered / $_total\n'
-            'Marked for review: $marked\n'
-            'Unanswered: ${_total - answered}\n\n'
-            'Once submitted, answers cannot be changed.'),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Keep Working')),
-          TextButton(
-            onPressed: () {
-              AppStore.clearExamProgress();
-              AppStore.resultsPublished = false;
-              Navigator.pop(ctx);
-              context.go('/student/exam-analysis');
-            },
-            child: const Text('Submit',
-                style: TextStyle(color: AppColors.secondary)),
-          ),
-        ],
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
+    if (_loading) {
+      return const Scaffold(
+          backgroundColor: AppColors.scaffold,
+          body: Center(child: CircularProgressIndicator()));
+    }
+    if (_error != null) {
+      return Scaffold(
+        backgroundColor: AppColors.scaffold,
+        body: Center(
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            const Icon(Icons.error_outline, color: AppColors.error, size: 40),
+            const SizedBox(height: 12),
+            Text(_error!, style: Theme.of(context).textTheme.bodyMedium),
+            const SizedBox(height: 14),
+            AppButton('Back', onPressed: () => context.go('/student/exams')),
+          ]),
+        ),
+      );
+    }
+
+    final q = _q!;
+    final qid = q['question_id'] as String;
+    final qtype = q['qtype'] as String? ?? 'short_answer';
+    final isMcq = qtype == 'multiple_choice';
+    final options = (q['options'] as List? ?? []);
+    final imageUrls = (q['image_urls'] as List? ?? []).cast<String>();
+    final selectedIdx = isMcq
+        ? ((_answers[qid]?['selected'] as List?)?.cast<num>() ?? const [])
+        : const <num>[];
+    final isMarked = _marked.contains(_index);
+
     return PopRedirect(
-      fallbackRoute: '/student/hub',
+      fallbackRoute: '/student/exams',
       child: Scaffold(
         backgroundColor: AppColors.scaffold,
         appBar: AppBar(
           backgroundColor: AppColors.background,
           leading: const Icon(Icons.menu_book_outlined, color: AppColors.primary),
           titleSpacing: 0,
-          title: Text('JEE Advanced: Paper 1',
-              style: Theme.of(context).textTheme.titleLarge),
+          title: Text(_exam?['title'] as String? ?? 'Exam',
+              style: Theme.of(context).textTheme.titleLarge,
+              overflow: TextOverflow.ellipsis),
           actions: [
             IconButton(
               tooltip: 'Question palette',
@@ -189,26 +327,18 @@ class _ExamQuestionScreenState extends State<ExamQuestionScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               margin: const EdgeInsets.only(right: 12),
               decoration: BoxDecoration(
-                color: AppColors.tealStrong.withValues(alpha: 0.2),
+                color: _remaining.inMinutes < 5
+                    ? AppColors.error.withValues(alpha: 0.2)
+                    : AppColors.tealStrong.withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(AppRadius.sm),
               ),
-              child: Text('01:42:09',
-                  style: AppTheme.mono(13, FontWeight.w700, color: AppColors.teal)),
+              child: Text(_clock,
+                  style: AppTheme.mono(13, FontWeight.w700,
+                      color: _remaining.inMinutes < 5
+                          ? AppColors.error
+                          : AppColors.teal)),
             ),
           ],
-          bottom: PreferredSize(
-            preferredSize: const Size.fromHeight(44),
-            child: Container(
-              decoration: const BoxDecoration(
-                border: Border(bottom: BorderSide(color: AppColors.outline)),
-              ),
-              child: Row(children: [
-                _SubjectTab('PHYSICS', selected: false),
-                _SubjectTab('MATHEMATICS', selected: true),
-                _SubjectTab('CHEMISTRY', selected: false),
-              ]),
-            ),
-          ),
         ),
         body: Center(
           child: ConstrainedBox(
@@ -226,66 +356,71 @@ class _ExamQuestionScreenState extends State<ExamQuestionScreen> {
                         color: AppColors.primaryStrong.withValues(alpha: 0.2),
                         borderRadius: BorderRadius.circular(AppRadius.sm),
                       ),
-                      child: Text('Q$_question',
+                      child: Text('Q${_index + 1}/${_questions.length}',
                           style: AppTheme.mono(12, FontWeight.w700,
                               color: AppColors.primary)),
                     ),
                     const SizedBox(width: 10),
                     Expanded(
-                      child: Text('SINGLE CORRECT TYPE',
+                      child: Text(
+                          switch (qtype) {
+                            'multiple_choice' => 'MULTIPLE CHOICE',
+                            'numeric' => 'NUMERIC ANSWER',
+                            _ => 'SHORT ANSWER',
+                          },
                           style: AppTheme.mono(11, FontWeight.w600,
                               color: AppColors.onSurface, ls: 1)),
                     ),
-                    const Icon(Icons.translate, size: 16, color: AppColors.muted),
-                    const SizedBox(width: 10),
-                    const Icon(Icons.info_outline, size: 16, color: AppColors.muted),
                   ]),
                   const SizedBox(height: 4),
-                  Text('+4 / -1 Marks',
+                  Text('+${q['marks']} Marks',
                       style: AppTheme.mono(10, FontWeight.w500,
                           color: AppColors.success)),
                   const SizedBox(height: 16),
-                  Text('If the definite integral I is defined as',
-                      style: Theme.of(context).textTheme.bodyLarge),
-                  const SizedBox(height: 12),
-                  // LaTeX block on the void panel
-                  const MathPanel(
-                      r'I = \int_{0}^{\pi} \frac{x\,\sin(x)}{1+\cos^2(x)}\,dx',
-                      fontSize: 18, center: true),
-                  const SizedBox(height: 12),
-                  Text('then find the value of I.',
-                      style: Theme.of(context).textTheme.bodyLarge),
-                  const SizedBox(height: 16),
-                  // Figure panel
-                  Container(
-                    width: double.infinity,
-                    height: 150,
-                    decoration: BoxDecoration(
-                      color: Colors.black,
+                  MixedMathText(q['prompt'] as String? ?? '', fontSize: 16),
+                  for (final url in imageUrls) ...[
+                    const SizedBox(height: 14),
+                    ClipRRect(
                       borderRadius: BorderRadius.circular(AppRadius.md),
-                      border: Border.all(color: AppColors.outline),
+                      child: Image.network(url,
+                          width: double.infinity,
+                          fit: BoxFit.contain,
+                          errorBuilder: (_, __, ___) => const SizedBox()),
                     ),
-                    child: Stack(children: [
-                      const Center(
-                          child: Icon(Icons.show_chart,
-                              color: AppColors.primaryStrong, size: 40)),
-                      Positioned(
-                        left: 12, bottom: 12,
-                        child: Text('FIGURE 14.1: FUNCTION VISUALIZATION',
-                            style: AppTheme.mono(9, FontWeight.w600, ls: 1)),
-                      ),
-                    ]),
-                  ),
+                  ],
                   const SizedBox(height: 20),
-                  for (var i = 0; i < _options.length; i++)
-                    _OptionCard(
-                      letter: String.fromCharCode(65 + i),
-                      latex: _options[i],
-                      selected: _selected == i,
-                      onTap: () {
-                        setState(() => _answers[_question] = i);
-                        _autosave();
-                      },
+                  if (isMcq)
+                    for (var i = 0; i < options.length; i++)
+                      _OptionCard(
+                        letter: String.fromCharCode(65 + i),
+                        latex: (options[i] as Map)['text'] as String? ?? '',
+                        selected: selectedIdx.contains(i),
+                        onTap: () => _saveAnswer(qid, {
+                          'selected': [i]
+                        }),
+                      )
+                  else
+                    AppCard(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          FieldLabel(qtype == 'numeric'
+                              ? 'Your Numeric Answer'
+                              : 'Your Answer'),
+                          AppInput(
+                            controller: _textCtrl,
+                            maxLines: qtype == 'numeric' ? 1 : 4,
+                            hint: qtype == 'numeric'
+                                ? 'e.g. 42 or 3.14'
+                                : 'Type your answer…',
+                            onChanged: (v) => _saveAnswer(
+                                qid,
+                                qtype == 'numeric'
+                                    ? {'value': v}
+                                    : {'text': v}),
+                          ),
+                        ],
+                      ),
                     ),
                   const SizedBox(height: 80),
                 ],
@@ -304,29 +439,27 @@ class _ExamQuestionScreenState extends State<ExamQuestionScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               child: Row(children: [
                 _ToolAction(
-                  icon: _isMarked ? Icons.bookmark : Icons.bookmark_outline,
+                  icon: isMarked ? Icons.bookmark : Icons.bookmark_outline,
                   label: 'MARK REVIEW',
-                  color: _isMarked ? AppColors.secondary : AppColors.muted,
-                  onTap: () {
-                    setState(() => _isMarked
-                        ? _marked.remove(_question)
-                        : _marked.add(_question));
-                    _autosave();
-                  },
+                  color: isMarked ? AppColors.secondary : AppColors.muted,
+                  onTap: () => setState(() =>
+                      isMarked ? _marked.remove(_index) : _marked.add(_index)),
                 ),
                 const SizedBox(width: 16),
-                _ToolAction(
-                  icon: Icons.backspace_outlined,
-                  label: 'CLEAR',
-                  color: AppColors.muted,
-                  onTap: () {
-                    setState(() => _answers.remove(_question));
-                    _autosave();
-                  },
-                ),
+                if (_index > 0)
+                  _ToolAction(
+                    icon: Icons.chevron_left,
+                    label: 'PREV',
+                    color: AppColors.muted,
+                    onTap: () => _jumpTo(_index - 1),
+                  ),
                 const Spacer(),
                 AppButton(
-                    _question >= _total ? 'Submit Exam' : 'Save & Next',
+                    _submitting
+                        ? 'Submitting…'
+                        : _index >= _questions.length - 1
+                            ? 'Submit Exam'
+                            : 'Save & Next',
                     kind: AppBtnKind.primary,
                     onPressed: _next),
               ]),
@@ -336,31 +469,6 @@ class _ExamQuestionScreenState extends State<ExamQuestionScreen> {
       ),
     );
   }
-}
-
-class _SubjectTab extends StatelessWidget {
-  const _SubjectTab(this.label, {required this.selected});
-  final String label;
-  final bool selected;
-  @override
-  Widget build(BuildContext context) => Expanded(
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          decoration: BoxDecoration(
-            border: Border(
-              bottom: BorderSide(
-                color: selected ? AppColors.teal : Colors.transparent,
-                width: 2,
-              ),
-            ),
-          ),
-          child: Center(
-            child: Text(label,
-                style: AppTheme.mono(10, FontWeight.w600,
-                    color: selected ? AppColors.teal : AppColors.muted, ls: 1)),
-          ),
-        ),
-      );
 }
 
 class _OptionCard extends StatelessWidget {
@@ -404,7 +512,7 @@ class _OptionCard extends StatelessWidget {
                       color: selected ? AppColors.primary : AppColors.muted)),
             ),
             const SizedBox(width: 14),
-            Expanded(child: MathText(latex, fontSize: 16)),
+            Expanded(child: MixedMathText(latex, fontSize: 16)),
             if (selected)
               const Icon(Icons.check_circle, size: 20, color: AppColors.primary),
           ]),

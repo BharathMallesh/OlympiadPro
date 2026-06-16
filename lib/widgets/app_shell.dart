@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../app/theme.dart';
+import '../data/api.dart';
 import 'common.dart';
 
 class NavDest {
@@ -57,6 +58,12 @@ class AppShell extends StatelessWidget {
           ? null
           : AppBar(
               backgroundColor: AppColors.background,
+              leading: Navigator.of(context).canPop()
+                  ? IconButton(
+                      tooltip: 'Back',
+                      icon: const Icon(Icons.arrow_back),
+                      onPressed: () => Navigator.of(context).pop())
+                  : null,
               title: titleWidget ?? Text(title,
                   style: Theme.of(context).textTheme.titleLarge),
               actions: actions,
@@ -147,15 +154,15 @@ class _Sidebar extends StatelessWidget {
               border: Border.all(color: AppColors.outline),
             ),
             child: Row(children: [
-              const InitialsAvatar('Aris Thorne', size: 38),
+              InitialsAvatar(api.displayName ?? 'Educator', size: 38),
               const SizedBox(width: 10),
               Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('Dr. Aris Thorne',
+                  Text(api.displayName ?? 'Educator',
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                           color: AppColors.onSurface, fontWeight: FontWeight.w600),
                       overflow: TextOverflow.ellipsis),
-                  Text('Senior Math Lead',
+                  Text(api.displaySubtitle ?? 'Educator',
                       style: AppTheme.mono(10, FontWeight.w500, ls: 0.5),
                       overflow: TextOverflow.ellipsis),
                 ]),

@@ -1,10 +1,46 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../app/theme.dart';
+import '../../data/drafts.dart';
+import '../../data/repo.dart';
 import '../../widgets/common.dart';
 
-class OnboardingFinalizeScreen extends StatelessWidget {
+class OnboardingFinalizeScreen extends StatefulWidget {
   const OnboardingFinalizeScreen({super.key});
+  @override
+  State<OnboardingFinalizeScreen> createState() =>
+      _OnboardingFinalizeScreenState();
+}
+
+class _OnboardingFinalizeScreenState extends State<OnboardingFinalizeScreen> {
+  bool _busy = false;
+
+  Future<void> _activate() async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      final d = onboardingDraft;
+      await Repo.teacherRegister(
+        email: d.email,
+        password: d.password,
+        fullName: d.fullName,
+        institutionName: d.institutionName,
+      );
+      if (d.className.isNotEmpty) {
+        await Repo.createClass(d.className,
+            grade: d.grade.isEmpty ? null : d.grade,
+            section: d.section.isEmpty ? null : d.section);
+      }
+      if (mounted) context.go('/dashboard');
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(e.toString()), backgroundColor: AppColors.error));
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -61,10 +97,16 @@ class OnboardingFinalizeScreen extends StatelessWidget {
                               ]),
                               const SizedBox(height: 20),
                               const FieldLabel('Faculty Member'),
-                              Text('Dr. Julian Thorne',
+                              Text(
+                                  onboardingDraft.fullName.isEmpty
+                                      ? 'New Educator'
+                                      : onboardingDraft.fullName,
                                   style: Theme.of(context).textTheme.headlineSmall),
                               const SizedBox(height: 4),
-                              Text('Senior Lead, Advanced Physics Research',
+                              Text(
+                                  onboardingDraft.title.isEmpty
+                                      ? 'Educator'
+                                      : onboardingDraft.title,
                                   style: Theme.of(context).textTheme.bodyMedium),
                               const SizedBox(height: 16),
                               const Divider(),
@@ -109,19 +151,25 @@ class OnboardingFinalizeScreen extends StatelessWidget {
                               ]),
                               const SizedBox(height: 20),
                               const FieldLabel('Institution'),
-                              Text('Excellence Academy',
+                              Text(onboardingDraft.institutionName,
                                   style: Theme.of(context).textTheme.headlineSmall),
                               const SizedBox(height: 4),
-                              Text('Physics Advanced - Sec B · Grade 12',
+                              Text(
+                                  [
+                                    onboardingDraft.className,
+                                    if (onboardingDraft.grade.isNotEmpty)
+                                      onboardingDraft.grade,
+                                  ].join(' · '),
                                   style: Theme.of(context).textTheme.bodyMedium),
                             ],
                           ),
                         ),
                         const SizedBox(height: 24),
-                        AppButton('Enter Dashboard',
+                        AppButton(
+                            _busy ? 'Creating Account…' : 'Enter Dashboard',
                             expand: true,
                             trailingIcon: Icons.arrow_forward,
-                            onPressed: () => context.go('/dashboard')),
+                            onPressed: _activate),
                         const SizedBox(height: 12),
                         Center(
                           child: TextButton(

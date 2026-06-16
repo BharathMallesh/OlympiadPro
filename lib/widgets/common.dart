@@ -228,6 +228,7 @@ class AppInput extends StatelessWidget {
     this.obscure = false,
     this.maxLines = 1,
     this.suffix,
+    this.onChanged,
   });
   final String? hint;
   final IconData? icon;
@@ -235,6 +236,7 @@ class AppInput extends StatelessWidget {
   final bool obscure;
   final int maxLines;
   final Widget? suffix;
+  final ValueChanged<String>? onChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -242,6 +244,7 @@ class AppInput extends StatelessWidget {
       controller: controller,
       obscureText: obscure,
       maxLines: maxLines,
+      onChanged: onChanged,
       style: const TextStyle(color: AppColors.onSurface, fontSize: 15),
       decoration: InputDecoration(
         hintText: hint,

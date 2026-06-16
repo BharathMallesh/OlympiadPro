@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../app/theme.dart';
+import '../../data/api.dart';
 import '../../widgets/common.dart';
 
 class PublishSuccessScreen extends StatelessWidget {
@@ -18,11 +19,12 @@ class PublishSuccessScreen extends StatelessWidget {
         title: Text('OlympiadPro Console',
             style: Theme.of(context).textTheme.titleLarge
                 ?.copyWith(color: AppColors.primary, fontWeight: FontWeight.w700)),
-        actions: const [
-          Center(child: Text('Academic Lead', style: TextStyle(color: AppColors.muted, fontSize: 13))),
-          SizedBox(width: 12),
-          InitialsAvatar('Aris Thorne', size: 32),
-          SizedBox(width: 16),
+        actions: [
+          Text(api.displaySubtitle ?? 'Educator',
+              style: const TextStyle(color: AppColors.muted, fontSize: 13)),
+          const SizedBox(width: 12),
+          InitialsAvatar(api.displayName ?? 'Educator', size: 32),
+          const SizedBox(width: 16),
         ],
       ),
       body: Center(

@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../app/theme.dart';
+import '../../data/repo.dart';
 import '../../widgets/common.dart';
 
-/// #10 — Class roster: approve/reject pending join requests and manage
-/// enrolled students.
+/// Class roster backed by the real API: lists every student in the
+/// institution with their access code, and adds new students (auto-enrolled
+/// into the teacher's first class).
 class RosterScreen extends StatefulWidget {
   const RosterScreen({super.key});
   @override
@@ -11,157 +14,227 @@ class RosterScreen extends StatefulWidget {
 }
 
 class _RosterScreenState extends State<RosterScreen> {
-  final _pending = <(String, String)>[
-    ('Rohan Iyer', 'Code MKT-2024-X · requested 2h ago'),
-    ('Sneha Patel', 'Code MKT-2024-X · requested 1d ago'),
-  ];
-  final _enrolled = <(String, String, Color)>[
-    ('Elena Sideris', 'JEE-2024-8902 · 92% avg', AppColors.teal),
-    ('Julian Martinez', 'JEE-2024-5512 · 78% avg', AppColors.secondary),
-    ('Amina Wong', 'JEE-2024-1029 · 61% avg', AppColors.error),
-    ('Devika Krishnan', 'JEE-2024-7011 · 84% avg', AppColors.primary),
-  ];
+  List<dynamic> _students = [];
+  List<dynamic> _classes = [];
+  bool _loading = true;
+  String? _error;
 
-  void _resolve(int i, bool approve) {
-    final (name, _) = _pending[i];
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
     setState(() {
-      if (approve) {
-        _enrolled.add((name, 'NEW · joined just now', AppColors.success));
-      }
-      _pending.removeAt(i);
+      _loading = true;
+      _error = null;
     });
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content:
-            Text(approve ? '$name added to the class.' : '$name request declined.')));
+    try {
+      final results = await Future.wait([Repo.students(), Repo.classes()]);
+      if (!mounted) return;
+      setState(() {
+        _students = results[0];
+        _classes = results[1];
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e.toString();
+        _loading = false;
+      });
+    }
+  }
+
+  Future<void> _addStudent() async {
+    final name = TextEditingController();
+    final roll = TextEditingController();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.surfaceHigh,
+        title: const Text('Add Student'),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          const FieldLabel('Full Name'),
+          AppInput(controller: name, hint: 'Aarav Patel'),
+          const SizedBox(height: 12),
+          const FieldLabel('Roll Number'),
+          AppInput(controller: roll, hint: '10A01'),
+        ]),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Add')),
+        ],
+      ),
+    );
+    if (ok != true || name.text.trim().isEmpty || roll.text.trim().isEmpty) {
+      return;
+    }
+    try {
+      final created = await Repo.bulkStudents([
+        {'full_name': name.text.trim(), 'roll_no': roll.text.trim()},
+      ]);
+      // Auto-enroll into the first class so published exams reach them.
+      if (_classes.isNotEmpty) {
+        await Repo.enroll(_classes.first['id'] as String,
+            [created.first['id'] as String]);
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(
+                '${name.text.trim()} added · access code ${created.first['access_code']}')));
+      }
+      await _load();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(e.toString()), backgroundColor: AppColors.error));
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return PopRedirect(
-      fallbackRoute: '/analytics/class',
+      fallbackRoute: '/dashboard',
       child: Scaffold(
         backgroundColor: AppColors.scaffold,
         appBar: AppBar(
           backgroundColor: AppColors.background,
           leading: IconButton(
+              tooltip: 'Back',
               icon: const Icon(Icons.arrow_back),
-              onPressed: () => popOrGo(context, '/analytics/class')),
+              onPressed: () => popOrGo(context, '/dashboard')),
           titleSpacing: 0,
           title: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Text('Class Roster', style: Theme.of(context).textTheme.titleLarge),
-              Text('Advanced Calculus - Section A',
+              Text(
+                  _classes.isEmpty
+                      ? 'All students'
+                      : (_classes.first['name'] as String? ?? ''),
                   style: AppTheme.mono(9, FontWeight.w500)),
             ],
           ),
           actions: [
-            StatusChip('${_enrolled.length} enrolled', color: AppColors.teal),
+            StatusChip('${_students.length} enrolled', color: AppColors.teal),
             const SizedBox(width: 14),
           ],
         ),
-        body: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 680),
-            child: ListView(
-              padding: const EdgeInsets.all(AppSpacing.md),
-              children: [
-                if (_pending.isNotEmpty) ...[
-                  SectionTitle('Pending Requests (${_pending.length})',
-                      icon: Icons.hourglass_top, color: AppColors.secondary),
-                  const SizedBox(height: 10),
-                  for (var i = 0; i < _pending.length; i++)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 10),
-                      child: AppCard(
-                        padding: const EdgeInsets.all(14),
-                        borderColor: AppColors.secondary.withValues(alpha: 0.4),
-                        child: Row(children: [
-                          InitialsAvatar(_pending[i].$1,
-                              size: 40, color: AppColors.secondary),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(_pending[i].$1,
-                                    style:
-                                        Theme.of(context).textTheme.titleMedium),
-                                Text(_pending[i].$2,
-                                    style: AppTheme.mono(9, FontWeight.w500)),
-                              ],
-                            ),
-                          ),
-                          IconButton(
-                            tooltip: 'Approve',
-                            onPressed: () => _resolve(i, true),
-                            icon: const Icon(Icons.check_circle,
-                                color: AppColors.success),
-                          ),
-                          IconButton(
-                            tooltip: 'Decline',
-                            onPressed: () => _resolve(i, false),
-                            icon: const Icon(Icons.cancel_outlined,
-                                color: AppColors.error),
-                          ),
-                        ]),
-                      ),
-                    ),
-                  const SizedBox(height: 14),
-                ],
-                SectionTitle('Enrolled Students', icon: Icons.groups_outlined),
-                const SizedBox(height: 10),
-                for (var i = 0; i < _enrolled.length; i++)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 10),
-                    child: AppCard(
-                      padding: const EdgeInsets.all(14),
-                      child: Row(children: [
-                        InitialsAvatar(_enrolled[i].$1,
-                            size: 40, color: _enrolled[i].$3),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(_enrolled[i].$1,
-                                  style: Theme.of(context).textTheme.titleMedium),
-                              Text(_enrolled[i].$2,
-                                  style: AppTheme.mono(9, FontWeight.w500)),
-                            ],
-                          ),
-                        ),
-                        PopupMenuButton<String>(
-                          icon: const Icon(Icons.more_vert,
-                              size: 18, color: AppColors.muted),
-                          color: AppColors.surfaceHigh,
-                          onSelected: (v) {
-                            if (v == 'remove') {
-                              final name = _enrolled[i].$1;
-                              setState(() => _enrolled.removeAt(i));
-                              ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                                  content:
-                                      Text('$name removed from the class.')));
-                            }
-                          },
-                          itemBuilder: (ctx) => const [
-                            PopupMenuItem(
-                                value: 'profile', child: Text('View profile')),
-                            PopupMenuItem(
-                                value: 'remove',
-                                child: Text('Remove from class',
-                                    style: TextStyle(color: AppColors.error))),
+        floatingActionButton: FloatingActionButton.extended(
+          onPressed: _addStudent,
+          backgroundColor: AppColors.primary,
+          icon: const Icon(Icons.person_add_alt, color: AppColors.onPrimary),
+          label: const Text('Add Student',
+              style: TextStyle(color: AppColors.onPrimary)),
+        ),
+        body: _loading
+            ? const Center(child: CircularProgressIndicator())
+            : _error != null
+                ? Center(
+                    child: Column(mainAxisSize: MainAxisSize.min, children: [
+                    Text(_error!,
+                        style: Theme.of(context).textTheme.bodyMedium),
+                    const SizedBox(height: 12),
+                    AppButton('Retry', onPressed: _load),
+                  ]))
+                : Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 680),
+                      child: RefreshIndicator(
+                        onRefresh: _load,
+                        child: ListView(
+                          padding: const EdgeInsets.all(AppSpacing.md),
+                          children: [
+                            const SectionTitle('Enrolled Students',
+                                icon: Icons.groups_outlined),
+                            const SizedBox(height: 4),
+                            Text(
+                                'Students sign in to the app with their roll number '
+                                'and the access code below.',
+                                style: Theme.of(context).textTheme.bodySmall),
+                            const SizedBox(height: 10),
+                            if (_students.isEmpty)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 40),
+                                child: Center(
+                                    child: Text('No students yet.',
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodyMedium)),
+                              ),
+                            for (final s in _students)
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 10),
+                                child: _StudentCard(
+                                    student: s as Map<String, dynamic>),
+                              ),
+                            const SizedBox(height: 80),
                           ],
                         ),
-                      ]),
+                      ),
                     ),
                   ),
-              ],
-            ),
+      ),
+    );
+  }
+}
+
+class _StudentCard extends StatelessWidget {
+  const _StudentCard({required this.student});
+  final Map<String, dynamic> student;
+
+  @override
+  Widget build(BuildContext context) {
+    final name = student['full_name'] as String? ?? '';
+    final roll = student['roll_no'] as String? ?? '';
+    final code = student['access_code'] as String? ?? '';
+    return AppCard(
+      padding: const EdgeInsets.all(14),
+      child: Row(children: [
+        InitialsAvatar(name, size: 40, color: AppColors.teal),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(name, style: Theme.of(context).textTheme.titleMedium),
+              Text(roll, style: AppTheme.mono(9, FontWeight.w500)),
+            ],
           ),
         ),
-      ),
+        InkWell(
+          onTap: () {
+            Clipboard.setData(ClipboardData(text: code));
+            ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Access code $code copied')));
+          },
+          borderRadius: BorderRadius.circular(AppRadius.sm),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: AppColors.tealStrong.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(AppRadius.sm),
+              border: Border.all(
+                  color: AppColors.teal.withValues(alpha: 0.4)),
+            ),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Text(code,
+                  style:
+                      AppTheme.mono(12, FontWeight.w700, color: AppColors.teal)),
+              const SizedBox(width: 6),
+              const Icon(Icons.copy, size: 12, color: AppColors.teal),
+            ]),
+          ),
+        ),
+      ]),
     );
   }
 }

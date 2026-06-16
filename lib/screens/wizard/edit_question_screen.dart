@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../app/theme.dart';
 import '../../data/mock.dart';
+import '../../data/repo.dart';
 import '../../models/models.dart';
 import '../../widgets/common.dart';
 import '../../widgets/math_text.dart';
@@ -120,14 +121,61 @@ class _EditQuestionScreenState extends State<EditQuestionScreen> {
     );
   }
 
-  void _save() {
+  bool _saving = false;
+
+  Future<void> _save() async {
+    if (_saving) return;
+    setState(() => _saving = true);
     q.prompt = _prompt.text;
     // A teacher-reviewed question counts as parsed/reviewed.
     q.status = QStatus.parsed;
     q.warning = null;
-    if (_creating) questionStore.questions.add(q);
-    questionStore.touch();
-    popOrGo(context, _fallback);
+    try {
+      if (q.id == null) {
+        final created = await Repo.createQuestion(q.toApi());
+        q.id = created['id'] as String;
+      } else {
+        await Repo.updateQuestion(q.id!, q.toApi());
+      }
+      // Push locally added images through the backend to Cloudinary.
+      while (q.images.isNotEmpty) {
+        final bytes = q.images.first;
+        final updated =
+            await Repo.uploadQuestionImage(q.id!, bytes, 'attachment.png');
+        q.imageUrls
+          ..clear()
+          ..addAll((updated['image_urls'] as List).cast<String>());
+        q.images.removeAt(0);
+      }
+      if (_creating) questionStore.questions.add(q);
+      questionStore.touch();
+      if (mounted) popOrGo(context, _fallback);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('Save failed: $e'),
+            backgroundColor: AppColors.error));
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _removeRemoteImage(String url) async {
+    if (q.id == null) return;
+    try {
+      final updated = await Repo.removeQuestionImage(q.id!, url);
+      setState(() {
+        q.imageUrls
+          ..clear()
+          ..addAll((updated['image_urls'] as List).cast<String>());
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(e.toString()), backgroundColor: AppColors.error));
+      }
+    }
   }
 
   @override
@@ -139,12 +187,13 @@ class _EditQuestionScreenState extends State<EditQuestionScreen> {
       appBar: AppBar(
         backgroundColor: AppColors.background,
         leading: IconButton(
+            tooltip: 'Close',
             icon: const Icon(Icons.close),
             onPressed: () => popOrGo(context, _fallback)),
         title: Text(_creating ? 'New Question' : 'Edit ${q.label}',
             style: Theme.of(context).textTheme.titleLarge),
         actions: [
-          AppButton('Save', kind: AppBtnKind.secondary,
+          AppButton(_saving ? 'Saving…' : 'Save', kind: AppBtnKind.secondary,
               icon: Icons.check, onPressed: _save),
           const SizedBox(width: 12),
         ],
@@ -191,7 +240,7 @@ class _EditQuestionScreenState extends State<EditQuestionScreen> {
                       const SizedBox(height: 12),
                       // Live preview on the "void" panel.
                       const FieldLabel('Preview'),
-                      MathPanel(_prompt.text.isEmpty ? '-' : _prompt.text,
+                      MixedMathText(_prompt.text.isEmpty ? '-' : _prompt.text,
                           fontSize: 16),
 
                       // ---- Image attachments: directly below the question ----
@@ -199,15 +248,18 @@ class _EditQuestionScreenState extends State<EditQuestionScreen> {
                       Row(children: [
                         const FieldLabel('Attached Images'),
                         const Spacer(),
-                        if (q.images.isNotEmpty)
-                          Text('${q.images.length} added',
+                        if (q.images.isNotEmpty || q.imageUrls.isNotEmpty)
+                          Text(
+                              '${q.images.length + q.imageUrls.length} attached',
                               style: AppTheme.mono(10, FontWeight.w500)),
                       ]),
                       _ImageStrip(
                         images: q.images,
+                        imageUrls: q.imageUrls,
                         picking: _picking,
                         onAdd: _chooseSource,
                         onRemove: (i) => setState(() => q.images.removeAt(i)),
+                        onRemoveUrl: _removeRemoteImage,
                       ),
                     ],
                   ),
@@ -264,7 +316,7 @@ class _EditQuestionScreenState extends State<EditQuestionScreen> {
                   AppButton('Cancel', kind: AppBtnKind.ghost,
                       onPressed: () => popOrGo(context, _fallback)),
                   const Spacer(),
-                  AppButton('Save Question',
+                  AppButton(_saving ? 'Saving…' : 'Save Question',
                       kind: AppBtnKind.secondary,
                       trailingIcon: Icons.check,
                       onPressed: _save),
@@ -279,18 +331,23 @@ class _EditQuestionScreenState extends State<EditQuestionScreen> {
   }
 }
 
-/// Horizontal strip of attachment thumbnails + an "Add" tile.
+/// Horizontal strip of attachment thumbnails + an "Add" tile. Shows both
+/// already-uploaded Cloudinary images and freshly picked local ones.
 class _ImageStrip extends StatelessWidget {
   const _ImageStrip({
     required this.images,
+    required this.imageUrls,
     required this.picking,
     required this.onAdd,
     required this.onRemove,
+    required this.onRemoveUrl,
   });
   final List<Uint8List> images;
+  final List<String> imageUrls;
   final bool picking;
   final VoidCallback onAdd;
   final ValueChanged<int> onRemove;
+  final ValueChanged<String> onRemoveUrl;
 
   @override
   Widget build(BuildContext context) {
@@ -298,6 +355,8 @@ class _ImageStrip extends StatelessWidget {
       spacing: 12,
       runSpacing: 12,
       children: [
+        for (final url in imageUrls)
+          _Thumb(url: url, onRemove: () => onRemoveUrl(url)),
         for (var i = 0; i < images.length; i++)
           _Thumb(bytes: images[i], onRemove: () => onRemove(i)),
         // Add tile (dashed look)
@@ -338,8 +397,9 @@ class _ImageStrip extends StatelessWidget {
 }
 
 class _Thumb extends StatelessWidget {
-  const _Thumb({required this.bytes, required this.onRemove});
-  final Uint8List bytes;
+  const _Thumb({this.bytes, this.url, required this.onRemove});
+  final Uint8List? bytes;
+  final String? url;
   final VoidCallback onRemove;
   @override
   Widget build(BuildContext context) {
@@ -347,8 +407,19 @@ class _Thumb extends StatelessWidget {
       children: [
         ClipRRect(
           borderRadius: BorderRadius.circular(AppRadius.md),
-          child: Image.memory(bytes,
-              width: 110, height: 110, fit: BoxFit.cover),
+          child: bytes != null
+              ? Image.memory(bytes!,
+                  width: 110, height: 110, fit: BoxFit.cover)
+              : Image.network(url!,
+                  width: 110,
+                  height: 110,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => Container(
+                      width: 110,
+                      height: 110,
+                      color: AppColors.surfaceContainer,
+                      child: const Icon(Icons.broken_image,
+                          color: AppColors.muted))),
         ),
         Positioned(
           top: 4, right: 4,

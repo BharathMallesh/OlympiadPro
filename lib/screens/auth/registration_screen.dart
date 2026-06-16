@@ -1,10 +1,38 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../app/theme.dart';
+import '../../data/drafts.dart';
 import '../../widgets/common.dart';
 
-class RegistrationScreen extends StatelessWidget {
+class RegistrationScreen extends StatefulWidget {
   const RegistrationScreen({super.key});
+  @override
+  State<RegistrationScreen> createState() => _RegistrationScreenState();
+}
+
+class _RegistrationScreenState extends State<RegistrationScreen> {
+  final _name = TextEditingController(text: onboardingDraft.fullName);
+  final _email = TextEditingController(text: onboardingDraft.email);
+  final _password = TextEditingController(text: onboardingDraft.password);
+  final _title = TextEditingController(text: onboardingDraft.title);
+
+  void _continue() {
+    if (_name.text.trim().isEmpty ||
+        _email.text.trim().isEmpty ||
+        _password.text.length < 8) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Name, email, and a password of 8+ characters are required'),
+        backgroundColor: AppColors.error,
+      ));
+      return;
+    }
+    onboardingDraft
+      ..fullName = _name.text.trim()
+      ..email = _email.text.trim()
+      ..password = _password.text
+      ..title = _title.text.trim();
+    context.go('/register/institution');
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -48,19 +76,25 @@ class RegistrationScreen extends StatelessWidget {
                               ]),
                               const SizedBox(height: 20),
                               const FieldLabel('Full Name'),
-                              const AppInput(hint: 'Dr. Julian Thorne'),
+                              AppInput(
+                                  controller: _name,
+                                  hint: 'Dr. Julian Thorne'),
                               const SizedBox(height: 16),
                               const FieldLabel('Email Address'),
-                              const AppInput(hint: 'j.thorne@university.edu'),
+                              AppInput(
+                                  controller: _email,
+                                  hint: 'j.thorne@university.edu'),
                               const SizedBox(height: 16),
                               const FieldLabel('Password'),
-                              const AppInput(hint: '••••••••', obscure: true),
-                              const SizedBox(height: 16),
-                              const FieldLabel('Faculty Department'),
-                              const _FakeDropdown('Select Department'),
+                              AppInput(
+                                  controller: _password,
+                                  hint: 'At least 8 characters',
+                                  obscure: true),
                               const SizedBox(height: 16),
                               const FieldLabel('Professional Title'),
-                              const AppInput(hint: 'Senior Faculty of Competitive Math'),
+                              AppInput(
+                                  controller: _title,
+                                  hint: 'Senior Faculty of Competitive Math'),
                               const SizedBox(height: 20),
                               Center(
                                 child: TextButton.icon(
@@ -76,7 +110,7 @@ class RegistrationScreen extends StatelessWidget {
                               AppButton('Continue',
                                   expand: true,
                                   trailingIcon: Icons.arrow_forward,
-                                  onPressed: () => context.go('/register/institution')),
+                                  onPressed: _continue),
                             ],
                           ),
                         ),
@@ -172,23 +206,4 @@ class _PhotoCard extends StatelessWidget {
       ]),
     );
   }
-}
-
-class _FakeDropdown extends StatelessWidget {
-  const _FakeDropdown(this.label);
-  final String label;
-  @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
-        decoration: BoxDecoration(
-          color: AppColors.scaffold,
-          borderRadius: BorderRadius.circular(AppRadius.sm),
-          border: Border.all(color: AppColors.outlineStrong),
-        ),
-        child: Row(children: [
-          Text(label, style: const TextStyle(color: AppColors.onSurface)),
-          const Spacer(),
-          const Icon(Icons.keyboard_arrow_down, color: AppColors.muted, size: 20),
-        ]),
-      );
 }

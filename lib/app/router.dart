@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../data/api.dart';
 import '../screens/auth/login_screen.dart';
 import '../screens/auth/registration_screen.dart';
 import '../screens/auth/institution_setup_screen.dart';
 import '../screens/auth/onboarding_finalize_screen.dart';
 import '../screens/dashboard/dashboard_screen.dart';
 import '../screens/wizard/exam_details_screen.dart';
+import '../screens/wizard/topic_exam_screen.dart';
 import '../screens/wizard/target_audience_screen.dart';
 import '../screens/wizard/scheduling_screen.dart';
 import '../screens/wizard/upload_paper_screen.dart';
@@ -27,6 +29,8 @@ import '../screens/student/interests_screen.dart';
 import '../screens/student/join_class_screen.dart';
 import '../screens/student/hub_screen.dart';
 import '../screens/student/practice_generator_screen.dart';
+import '../screens/student/practice_review_screen.dart';
+import '../screens/student/practice_session_screen.dart';
 import '../screens/student/exam_question_screen.dart';
 import '../screens/student/exam_analysis_screen.dart';
 import '../screens/student/practice_results_screen.dart';
@@ -51,7 +55,13 @@ CustomTransitionPage<void> _page(Widget child, GoRouterState s) =>
     );
 
 final router = GoRouter(
-  initialLocation: '/login',
+  // Restore the persisted session: api.init() has already run in main(),
+  // so a signed-in user skips the login screen on relaunch.
+  initialLocation: !api.signedIn
+      ? '/login'
+      : api.role == 'student'
+          ? '/student/hub'
+          : '/dashboard',
   routes: [
     GoRoute(path: '/login', pageBuilder: (c, s) => _page(const LoginScreen(), s)),
     GoRoute(path: '/register', pageBuilder: (c, s) => _page(const RegistrationScreen(), s)),
@@ -61,6 +71,7 @@ final router = GoRouter(
 
     // Exam-creation wizard
     GoRoute(path: '/wizard/details', pageBuilder: (c, s) => _page(const ExamDetailsScreen(), s)),
+    GoRoute(path: '/wizard/topic-exam', pageBuilder: (c, s) => _page(const TopicExamScreen(), s)),
     GoRoute(path: '/wizard/audience', pageBuilder: (c, s) => _page(const TargetAudienceScreen(), s)),
     GoRoute(path: '/wizard/scheduling', pageBuilder: (c, s) => _page(const SchedulingScreen(), s)),
     GoRoute(path: '/wizard/upload', pageBuilder: (c, s) => _page(const UploadPaperScreen(), s)),
@@ -84,7 +95,10 @@ final router = GoRouter(
     // Live & grading
     GoRoute(path: '/live/console', pageBuilder: (c, s) => _page(const LiveExamConsoleScreen(), s)),
     GoRoute(path: '/live/proctoring', pageBuilder: (c, s) => _page(const LiveProctoringScreen(), s)),
-    GoRoute(path: '/grading/submissions', pageBuilder: (c, s) => _page(const SubmissionListScreen(), s)),
+    GoRoute(
+        path: '/grading/submissions',
+        pageBuilder: (c, s) => _page(
+            SubmissionListScreen(examId: s.uri.queryParameters['exam']), s)),
     GoRoute(
       path: '/grading/manual/:id',
       pageBuilder: (c, s) =>
@@ -108,9 +122,28 @@ final router = GoRouter(
     GoRoute(path: '/student/join-class', pageBuilder: (c, s) => _page(const JoinClassScreen(), s)),
     GoRoute(path: '/student/hub', pageBuilder: (c, s) => _page(const StudentHubScreen(), s)),
     GoRoute(path: '/student/practice-generator', pageBuilder: (c, s) => _page(const PracticeGeneratorScreen(), s)),
-    GoRoute(path: '/student/exam', pageBuilder: (c, s) => _page(const ExamQuestionScreen(), s)),
+    GoRoute(
+        path: '/student/exam',
+        pageBuilder: (c, s) => _page(
+            ExamQuestionScreen(examId: s.uri.queryParameters['exam'] ?? ''),
+            s)),
     GoRoute(path: '/student/exam-analysis', pageBuilder: (c, s) => _page(const StudentExamAnalysisScreen(), s)),
-    GoRoute(path: '/student/practice-results', pageBuilder: (c, s) => _page(const PracticeResultsScreen(), s)),
+    GoRoute(
+        path: '/student/practice-session',
+        pageBuilder: (c, s) => _page(
+            PracticeSessionScreen(questions: s.extra as List<dynamic>), s)),
+    GoRoute(
+        path: '/student/practice-results',
+        pageBuilder: (c, s) => _page(
+            PracticeResultsScreen(
+                payload: (s.extra as Map<String, dynamic>?) ?? const {}),
+            s)),
+    GoRoute(
+        path: '/student/practice-review',
+        pageBuilder: (c, s) => _page(
+            PracticeReviewScreen(
+                sessionId: s.uri.queryParameters['session'] ?? ''),
+            s)),
     GoRoute(path: '/student/solution', pageBuilder: (c, s) => _page(const SolutionViewScreen(), s)),
     GoRoute(path: '/student/problem-analysis', pageBuilder: (c, s) => _page(const ProblemAnalysisScreen(), s)),
     GoRoute(path: '/student/profile', pageBuilder: (c, s) => _page(const StudentProfileScreen(), s)),

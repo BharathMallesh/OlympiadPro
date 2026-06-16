@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../app/theme.dart';
+import '../../data/mock.dart';
+import '../../data/repo.dart';
 import '../../widgets/common.dart';
 
 class ReviewPublishScreen extends StatefulWidget {
@@ -11,6 +13,62 @@ class ReviewPublishScreen extends StatefulWidget {
 
 class _ReviewPublishScreenState extends State<ReviewPublishScreen> {
   bool _confirmed = false;
+  bool _publishing = false;
+
+  /// Creates the exam on the backend, attaches the reviewed questions,
+  /// targets the selected classes, and (optionally) publishes.
+  Future<void> _persistExam({required bool publish}) async {
+    if (_publishing) return;
+    setState(() => _publishing = true);
+    final d = examDraft;
+    try {
+      if (d.title.trim().isEmpty) {
+        throw 'Exam title is missing — set it in step 1.';
+      }
+      final exam = await Repo.createExam(
+        title: d.title.trim(),
+        board: d.board,
+        description: d.description,
+        format: d.format,
+        durationMin: d.duration,
+      );
+      d.examId = exam['id'] as String;
+
+      final items = <Map<String, dynamic>>[];
+      var pos = 1;
+      for (final q in questionStore.questions) {
+        if (q.id != null) {
+          items.add({'question_id': q.id, 'position': pos, 'marks': q.marks});
+          pos++;
+        }
+      }
+      if (items.isNotEmpty) await Repo.setExamQuestions(d.examId!, items);
+
+      final classIds = [
+        for (final name in d.targetClasses)
+          if (d.classIdsByName[name] != null) d.classIdsByName[name]!
+      ];
+      if (classIds.isNotEmpty) await Repo.setExamTargets(d.examId!, classIds);
+
+      if (publish) {
+        if (classIds.isEmpty) {
+          throw 'Select at least one target class before publishing.';
+        }
+        await Repo.publishExam(d.examId!);
+      }
+
+      d.questions = items.length;
+      d.marks = items.fold(0, (a, b) => a + (b['marks'] as int));
+      if (mounted) context.go(publish ? '/wizard/success' : '/dashboard');
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(e.toString()), backgroundColor: AppColors.error));
+      }
+    } finally {
+      if (mounted) setState(() => _publishing = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -85,7 +143,10 @@ class _ReviewPublishScreenState extends State<ReviewPublishScreen> {
                                   StatusChip('Verification Pending',
                                       color: AppColors.onSurfaceVariant),
                                   const SizedBox(height: 14),
-                                  Text('Advanced Physics - JEE Mock 1',
+                                  Text(
+                                      examDraft.title.isEmpty
+                                          ? 'Untitled Exam'
+                                          : examDraft.title,
                                       style: Theme.of(context).textTheme.headlineMedium),
                                   const SizedBox(height: 8),
                                   Text(
@@ -109,39 +170,36 @@ class _ReviewPublishScreenState extends State<ReviewPublishScreen> {
                         icon: Icons.info_outline,
                         title: 'Primary Information',
                         initiallyExpanded: true,
-                        child: Row(children: const [
-                          _KV('Board', 'JEE'),
-                          _KV('Duration', '180 mins'),
-                          _KV('Category', 'Mock Exam'),
+                        child: Row(children: [
+                          _KV('Board', examDraft.board),
+                          _KV('Duration', '${examDraft.duration} mins'),
+                          _KV('Category', examDraft.format),
                         ]),
                       ),
                       _Section(
                         icon: Icons.groups_outlined,
                         iconColor: AppColors.success,
                         title: 'Targeting & Audience',
-                        child: Row(children: const [
-                          _KV('Classes', '2 selected'),
-                          _KV('Total Reach', '42 students'),
-                          _KV('Mode', 'All'),
-                        ]),
-                      ),
-                      _Section(
-                        icon: Icons.calendar_month_outlined,
-                        title: 'Scheduling & Logic',
-                        child: Row(children: const [
-                          _KV('Start', '25/11 09:00'),
-                          _KV('Strict Start', 'On'),
-                          _KV('Randomize', 'Off'),
+                        child: Row(children: [
+                          _KV('Classes',
+                              '${examDraft.targetClasses.length} selected'),
+                          _KV('Total Reach', '${examDraft.reach} students'),
+                          const _KV('Mode', 'All'),
                         ]),
                       ),
                       _Section(
                         icon: Icons.quiz_outlined,
                         title: 'Question Bank Summary',
-                        trailing: '30 QUESTIONS · 120 MARKS',
-                        child: Row(children: const [
-                          _KV('Auto-Parsed', '14'),
-                          _KV('Manual', '1'),
-                          _KV('Sections', '3'),
+                        trailing:
+                            '${questionStore.questions.length} QUESTIONS · '
+                            '${questionStore.questions.fold(0, (a, q) => a + q.marks)} MARKS',
+                        child: Row(children: [
+                          _KV('Parsed',
+                              '${questionStore.questions.where((q) => q.id != null).length}'),
+                          _KV('Needs Review',
+                              '${questionStore.questions.where((q) => q.warning != null).length}'),
+                          _KV('With Images',
+                              '${questionStore.questions.where((q) => q.imageUrls.isNotEmpty).length}'),
                         ]),
                       ),
                       const SizedBox(height: 20),
@@ -194,13 +252,16 @@ class _ReviewPublishScreenState extends State<ReviewPublishScreen> {
                     kind: AppBtnKind.ghost,
                     icon: Icons.chevron_left,
                     onPressed: () => context.go('/wizard/finalize'));
-                final draft = AppButton('Save Draft', kind: AppBtnKind.ghost,
-                    onPressed: () => context.go('/dashboard'));
-                final publish = AppButton('Publish Exam',
+                final draft = AppButton(
+                    _publishing ? 'Saving…' : 'Save Draft',
+                    kind: AppBtnKind.ghost,
+                    onPressed: () => _persistExam(publish: false));
+                final publish = AppButton(
+                    _publishing ? 'Publishing…' : 'Publish Exam',
                     kind: AppBtnKind.secondary,
                     trailingIcon: Icons.rocket_launch_outlined,
                     onPressed:
-                        _confirmed ? () => context.go('/wizard/success') : null);
+                        _confirmed ? () => _persistExam(publish: true) : null);
                 if (!tight) {
                   return Row(children: [back, const Spacer(), draft,
                       const SizedBox(width: 12), publish]);

@@ -14,11 +14,9 @@ class StudentExamAnalysisScreen extends StatelessWidget {
       title: 'Exam Analysis',
       currentTab: 2,
       leading: IconButton(
+          tooltip: 'Back',
           icon: const Icon(Icons.arrow_back),
           onPressed: () => popOrGo(context, '/student/hub')),
-      actions: [
-        IconButton(onPressed: () {}, icon: const Icon(Icons.more_vert, size: 20)),
-      ],
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(AppSpacing.md),
         child: Column(

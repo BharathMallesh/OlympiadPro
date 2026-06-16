@@ -28,6 +28,7 @@ class _JoinClassScreenState extends State<JoinClassScreen> {
         appBar: AppBar(
           backgroundColor: AppColors.background,
           leading: IconButton(
+              tooltip: 'Back',
               icon: const Icon(Icons.arrow_back),
               onPressed: () => context.go('/student/interests')),
           title: Text('OlympiadPro',
