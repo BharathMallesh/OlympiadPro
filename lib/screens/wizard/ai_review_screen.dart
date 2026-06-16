@@ -19,6 +19,13 @@ class _AiReviewScreenState extends State<AiReviewScreen> {
   bool _parsing = false;
   String? _parseError;
   Timer? _pollTimer;
+  String _filter = 'all'; // all | review | parsed
+
+  /// Re-hydrate the shared store from the backend (after a regenerate/fix).
+  Future<void> _reload() => questionStore.loadFromApi(
+      onlyIds: examDraft.importedQuestionIds.isEmpty
+          ? null
+          : examDraft.importedQuestionIds);
 
   @override
   void initState() {
@@ -112,12 +119,35 @@ class _AiReviewScreenState extends State<AiReviewScreen> {
             onPressed: () => context.go('/wizard/upload')),
         title: Text('AI Review & Edit',
             style: Theme.of(context).textTheme.titleLarge),
+        actions: [
+          PopupMenuButton<String>(
+            tooltip: 'Filter questions',
+            icon: Icon(Icons.filter_list,
+                color: _filter == 'all'
+                    ? AppColors.onSurfaceVariant
+                    : AppColors.primary),
+            initialValue: _filter,
+            onSelected: (v) => setState(() => _filter = v),
+            itemBuilder: (context) => const [
+              PopupMenuItem(value: 'all', child: Text('All questions')),
+              PopupMenuItem(value: 'review', child: Text('Needs review')),
+              PopupMenuItem(value: 'parsed', child: Text('Auto-parsed')),
+            ],
+          ),
+          const SizedBox(width: 8),
+        ],
       ),
       body: ListenableBuilder(
         listenable: questionStore,
         builder: (context, _) {
-          final questions = questionStore.questions;
-          final reviewed = questions.where((q) => q.status == QStatus.parsed).length;
+          final all = questionStore.questions;
+          final reviewed = all.where((q) => q.status == QStatus.parsed).length;
+          bool show(QuestionItem q) => _filter == 'all'
+              ? true
+              : _filter == 'review'
+                  ? q.status == QStatus.reviewNeeded
+                  : q.status == QStatus.parsed;
+          final visible = all.where(show).length;
           return Column(
             children: [
               // Review progress bar
@@ -129,13 +159,16 @@ class _AiReviewScreenState extends State<AiReviewScreen> {
                 child: Row(children: [
                   Text('Questions', style: Theme.of(context).textTheme.titleMedium),
                   const SizedBox(width: 16),
-                  Text('$reviewed of ${questions.length} reviewed',
+                  Text(
+                      _filter == 'all'
+                          ? '$reviewed of ${all.length} reviewed'
+                          : '$visible of ${all.length} shown',
                       style: AppTheme.mono(12, FontWeight.w500, color: AppColors.muted)),
                   const SizedBox(width: 16),
                   Expanded(
-                      child: ProgressLine(questions.isEmpty
+                      child: ProgressLine(all.isEmpty
                           ? 0
-                          : reviewed / questions.length)),
+                          : reviewed / all.length)),
                 ]),
               ),
               Expanded(
@@ -146,10 +179,20 @@ class _AiReviewScreenState extends State<AiReviewScreen> {
                       constraints: const BoxConstraints(maxWidth: 900),
                       child: Column(
                         children: [
-                          for (var i = 0; i < questions.length; i++) ...[
-                            _QuestionCard(index: i, q: questions[i]),
-                            const SizedBox(height: 16),
-                          ],
+                          if (visible == 0 && all.isNotEmpty)
+                            Padding(
+                              padding: const EdgeInsets.all(32),
+                              child: Text('No questions match this filter.',
+                                  style: Theme.of(context).textTheme.bodyMedium),
+                            ),
+                          // Keep `index` aligned with the store so the edit
+                          // screen edits the right question even when filtered.
+                          for (var i = 0; i < all.length; i++)
+                            if (show(all[i])) ...[
+                              _QuestionCard(
+                                  index: i, q: all[i], onReload: _reload),
+                              const SizedBox(height: 16),
+                            ],
                         ],
                       ),
                     ),
@@ -187,13 +230,104 @@ class _AiReviewScreenState extends State<AiReviewScreen> {
   }
 }
 
-class _QuestionCard extends StatelessWidget {
-  const _QuestionCard({required this.index, required this.q});
+class _QuestionCard extends StatefulWidget {
+  const _QuestionCard(
+      {required this.index, required this.q, required this.onReload});
   final int index;
   final QuestionItem q;
+  final Future<void> Function() onReload;
+
+  @override
+  State<_QuestionCard> createState() => _QuestionCardState();
+}
+
+class _QuestionCardState extends State<_QuestionCard> {
+  bool _busy = false;
+
+  /// Run a backend rewrite (regenerate / AI-fix), then refresh the store.
+  Future<void> _run(
+      Future<Map<String, dynamic>> Function() action, String okMsg) async {
+    if (widget.q.id == null) return;
+    setState(() => _busy = true);
+    try {
+      await action();
+      await widget.onReload();
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(okMsg)));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('$e'), backgroundColor: AppColors.error));
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  /// Show the verbatim source the question was parsed from; when [compare] is
+  /// true, show it side-by-side with the parsed question.
+  Future<void> _viewOriginal({bool compare = false}) async {
+    if (widget.q.id == null) return;
+    try {
+      final src = await Repo.questionSource(widget.q.id!);
+      final source = (src['source_text'] as String?)?.trim();
+      if (!mounted) return;
+      showDialog<void>(
+        context: context,
+        builder: (context) => AlertDialog(
+          backgroundColor: AppColors.surface,
+          title: Text(compare ? 'Compare with original' : 'Original source'),
+          content: SizedBox(
+            width: 460,
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (compare) ...[
+                    Text('PARSED QUESTION',
+                        style: AppTheme.mono(10, FontWeight.w700,
+                            color: AppColors.primary, ls: 1)),
+                    const SizedBox(height: 6),
+                    MixedMathText(widget.q.prompt, fontSize: 14),
+                    const SizedBox(height: 16),
+                  ],
+                  Text('ORIGINAL (FROM PAPER)',
+                      style: AppTheme.mono(10, FontWeight.w700,
+                          color: AppColors.secondary, ls: 1)),
+                  const SizedBox(height: 6),
+                  Text(
+                      source == null || source.isEmpty
+                          ? 'No original source was captured for this question. '
+                              'Only questions imported after source capture was '
+                              'enabled include the original text.'
+                          : source,
+                      style: Theme.of(context).textTheme.bodyMedium),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Close')),
+          ],
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('$e'), backgroundColor: AppColors.error));
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final q = widget.q;
+    final index = widget.index;
     final parsed = q.status == QStatus.parsed;
     final statusColor = parsed ? AppColors.success : AppColors.secondary;
     return AppCard(
@@ -276,12 +410,43 @@ class _QuestionCard extends StatelessWidget {
             ),
           ],
           const SizedBox(height: 14),
-          Row(children: [
-            AppButton('Edit',
-                kind: AppBtnKind.ghost,
-                icon: Icons.edit_outlined,
-                onPressed: () => context.push('/wizard/edit-question/$index')),
-          ]),
+          if (_busy)
+            Row(children: const [
+              SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2)),
+              SizedBox(width: 10),
+              Text('Asking AI…'),
+            ])
+          else
+            Wrap(spacing: 10, runSpacing: 10, children: [
+              AppButton('Edit',
+                  kind: AppBtnKind.ghost,
+                  icon: Icons.edit_outlined,
+                  onPressed: () => context.push('/wizard/edit-question/$index')),
+              AppButton('View Original',
+                  kind: AppBtnKind.ghost,
+                  icon: Icons.description_outlined,
+                  onPressed: () => _viewOriginal()),
+              AppButton('Regenerate',
+                  kind: AppBtnKind.ghost,
+                  icon: Icons.refresh,
+                  onPressed: () => _run(
+                      () => Repo.regenerateQuestion(q.id!),
+                      'Question regenerated')),
+              if (q.warning != null) ...[
+                AppButton('Compare',
+                    kind: AppBtnKind.ghost,
+                    icon: Icons.compare_arrows,
+                    onPressed: () => _viewOriginal(compare: true)),
+                AppButton('AI Fix',
+                    kind: AppBtnKind.secondary,
+                    icon: Icons.auto_fix_high,
+                    onPressed: () =>
+                        _run(() => Repo.aiFixQuestion(q.id!), 'Question fixed')),
+              ],
+            ]),
         ],
       ),
     );

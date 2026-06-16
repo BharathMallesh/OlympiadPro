@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../app/theme.dart';
 import '../../widgets/common.dart';
+import '../../widgets/help_dialog.dart';
 
 class AcademicInterestsScreen extends StatefulWidget {
   const AcademicInterestsScreen({super.key});
@@ -35,6 +36,23 @@ class _AcademicInterestsScreenState extends State<AcademicInterestsScreen> {
           title: Text('OlympiadPro',
               style: Theme.of(context).textTheme.titleLarge
                   ?.copyWith(color: AppColors.primary, fontWeight: FontWeight.w700)),
+          actions: const [
+            HelpButton(title: 'Choosing your interests', tips: [
+              (
+                'Target exams',
+                'Pick the exams you are preparing for. We use these to tailor your AI practice sets and recommendations.'
+              ),
+              (
+                'Subjects',
+                'Select the subjects you want to focus on. You can change these any time from your profile.'
+              ),
+              (
+                'Why we ask',
+                'These preferences personalise your practice — they are not shared with other students.'
+              ),
+            ]),
+            SizedBox(width: 8),
+          ],
         ),
         body: Center(
           child: ConstrainedBox(

@@ -1,11 +1,34 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import '../../app/theme.dart';
 import '../../data/api.dart';
+import '../../data/stores.dart';
 import '../../widgets/common.dart';
 
 class PublishSuccessScreen extends StatelessWidget {
   const PublishSuccessScreen({super.key});
+
+  /// A deep link to the published exam that a student can open in the app.
+  String? get _examLink {
+    final id = examDraft.examId;
+    if (id == null || id.isEmpty) return null;
+    return '${ApiClient.baseUrl}/student/exam?exam=$id';
+  }
+
+  Future<void> _shareLink(BuildContext context) async {
+    final link = _examLink;
+    if (link == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Exam link is not available yet.')));
+      return;
+    }
+    await Clipboard.setData(ClipboardData(text: link));
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Exam link copied to clipboard')));
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -58,8 +81,9 @@ class PublishSuccessScreen extends StatelessWidget {
                     style: Theme.of(context).textTheme.headlineLarge),
                 const SizedBox(height: 10),
                 Text(
-                    'The mock examination has been processed and distributed to the '
-                    'candidate pool. All proctoring nodes are now on standby.',
+                    'Your exam has been published and is now available to the '
+                    'assigned students. Share the link below or head back to your '
+                    'dashboard to track submissions.',
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.bodyLarge),
                 const SizedBox(height: 28),
@@ -78,13 +102,18 @@ class PublishSuccessScreen extends StatelessWidget {
                                 style: AppTheme.mono(11, FontWeight.w600,
                                     color: AppColors.success, ls: 1)),
                             const SizedBox(height: 8),
-                            Text('Advanced Physics - JEE Mock 1',
+                            Text(
+                                examDraft.title.isEmpty
+                                    ? 'Your exam'
+                                    : examDraft.title,
                                 style: Theme.of(context).textTheme.headlineSmall),
                             const SizedBox(height: 16),
-                            Row(children: const [
-                              _Meta('Subject Domain', 'Physics', Icons.science_outlined),
-                              SizedBox(width: 24),
-                              _Meta('Exam Board', 'JEE', Icons.account_balance_outlined),
+                            Row(children: [
+                              _Meta('Exam Board', examDraft.board,
+                                  Icons.account_balance_outlined),
+                              const SizedBox(width: 24),
+                              _Meta('Duration', '${examDraft.duration} min',
+                                  Icons.timer_outlined),
                             ]),
                           ],
                         ),
@@ -98,7 +127,7 @@ class PublishSuccessScreen extends StatelessWidget {
                         child: Column(children: [
                           const Icon(Icons.groups, color: AppColors.primary, size: 28),
                           const SizedBox(height: 8),
-                          Text('450',
+                          Text('${examDraft.reach}',
                               style: AppTheme.mono(40, FontWeight.w700,
                                   color: AppColors.primary, ls: -1)),
                           Text('STUDENTS NOTIFIED',
@@ -114,6 +143,10 @@ class PublishSuccessScreen extends StatelessWidget {
                   runSpacing: 12,
                   alignment: WrapAlignment.center,
                   children: [
+                    AppButton('Share Link',
+                        kind: AppBtnKind.ghost,
+                        icon: Icons.link,
+                        onPressed: () => _shareLink(context)),
                     AppButton('Back to Dashboard',
                         kind: AppBtnKind.secondary,
                         icon: Icons.arrow_back,

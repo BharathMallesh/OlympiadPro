@@ -48,6 +48,11 @@ class Repo {
   static Future<Map<String, dynamic>> me() async =>
       (await api.get('/v1/auth/me')) as Map<String, dynamic>;
 
+  /// Update the signed-in teacher's display name.
+  static Future<Map<String, dynamic>> updateProfile(String fullName) async =>
+      (await api.put('/v1/auth/me', {'full_name': fullName}))
+          as Map<String, dynamic>;
+
   // ---- Classes & students ----
 
   static Future<List<dynamic>> classes() async =>
@@ -94,6 +99,19 @@ class Repo {
   static Future<Map<String, dynamic>> createQuestion(
           Map<String, dynamic> body) async =>
       (await api.post('/v1/questions', body)) as Map<String, dynamic>;
+
+  /// Verbatim source snippet a question was parsed from (for View Original /
+  /// Compare). Returns {source_text, prompt}; source_text may be null.
+  static Future<Map<String, dynamic>> questionSource(String id) async =>
+      (await api.get('/v1/questions/$id/source')) as Map<String, dynamic>;
+
+  /// Ask Gemini for a fresh variant of a question; persists and returns it.
+  static Future<Map<String, dynamic>> regenerateQuestion(String id) async =>
+      (await api.post('/v1/questions/$id/regenerate')) as Map<String, dynamic>;
+
+  /// Ask Gemini to repair a flagged question in place; persists and returns it.
+  static Future<Map<String, dynamic>> aiFixQuestion(String id) async =>
+      (await api.post('/v1/questions/$id/ai-fix')) as Map<String, dynamic>;
 
   static Future<Map<String, dynamic>> uploadQuestionImage(
           String id, List<int> bytes, String filename) async =>

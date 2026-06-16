@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../app/theme.dart';
+import '../../data/api.dart';
+import '../../data/repo.dart';
 import '../../data/store.dart';
 import '../../widgets/common.dart';
 
@@ -15,6 +17,57 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   String _language = 'English';
+
+  /// Edit the display name. Students don't have a self-service profile endpoint
+  /// yet, so editing is offered for teachers/admins only.
+  Future<void> _editProfile() async {
+    final controller = TextEditingController(text: api.displayName ?? '');
+    final newName = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        title: const Text('Edit profile'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          textCapitalization: TextCapitalization.words,
+          decoration: const InputDecoration(labelText: 'Full name'),
+          onSubmitted: (v) => Navigator.of(context).pop(v.trim()),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancel')),
+          FilledButton(
+              onPressed: () =>
+                  Navigator.of(context).pop(controller.text.trim()),
+              child: const Text('Save')),
+        ],
+      ),
+    );
+    if (newName == null || newName.isEmpty || newName == api.displayName) return;
+    try {
+      final t = await Repo.updateProfile(newName);
+      await api.setIdentity(
+          t['full_name'] as String?, api.displaySubtitle);
+      if (mounted) {
+        setState(() {});
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Profile updated')));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('Could not update profile: $e'),
+            backgroundColor: AppColors.error));
+      }
+    }
+  }
+
+  Future<void> _signOut() async {
+    await api.clearSession();
+    if (mounted) context.go('/login');
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -44,7 +97,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 AppCard(
                   padding: const EdgeInsets.all(16),
                   child: Row(children: [
-                    InitialsAvatar(isStudent ? 'Rohan Iyer' : 'Aris Thorne',
+                    InitialsAvatar(api.displayName ?? (isStudent ? 'Student' : 'Educator'),
                         size: 48,
                         color: isStudent ? AppColors.teal : AppColors.primaryStrong),
                     const SizedBox(width: 14),
@@ -52,16 +105,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(isStudent ? 'Rohan Iyer' : 'Dr. Aris Thorne',
+                          Text(api.displayName ?? (isStudent ? 'Student' : 'Educator'),
                               style: Theme.of(context).textTheme.titleMedium),
-                          Text(
-                              isStudent
-                                  ? 'rohan.iyer@student.edu · Class 10'
-                                  : 'a.thorne@excellence.edu · Senior Math Lead',
-                              style: Theme.of(context).textTheme.bodySmall),
+                          if ((api.displaySubtitle ?? '').isNotEmpty)
+                            Text(api.displaySubtitle!,
+                                style: Theme.of(context).textTheme.bodySmall),
                         ],
                       ),
                     ),
+                    if (!isStudent)
+                      TextButton(
+                          onPressed: _editProfile, child: const Text('Edit')),
                   ]),
                 ),
                 const SizedBox(height: 16),
@@ -150,7 +204,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     title: Text('Sign Out',
                         style: Theme.of(context).textTheme.bodyLarge
                             ?.copyWith(color: AppColors.error)),
-                    onTap: () => context.go('/login'),
+                    onTap: _signOut,
                   ),
                 ),
                 const SizedBox(height: 24),

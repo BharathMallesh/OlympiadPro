@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import '../../app/theme.dart';
 import '../../data/drafts.dart';
 import '../../widgets/common.dart';
+import '../../widgets/help_dialog.dart';
 
 class InstitutionSetupScreen extends StatefulWidget {
   const InstitutionSetupScreen({super.key});
@@ -50,6 +51,23 @@ class _InstitutionSetupScreenState extends State<InstitutionSetupScreen> {
         title: Text('Teacher Onboarding',
             style: Theme.of(context).textTheme.titleLarge
                 ?.copyWith(color: AppColors.primary)),
+        actions: const [
+          HelpButton(title: 'Setting up your institution', tips: [
+            (
+              'Institution',
+              'Enter your school, college, or coaching centre name. This groups all your classes and students together.'
+            ),
+            (
+              'Class name',
+              'Create one class to start (e.g. "Class 10 - A" or "JEE Batch 2025"). You can add more classes later from the dashboard.'
+            ),
+            (
+              'Grade & section',
+              'Optional — they help you and your students identify the right class. Leave blank if not applicable.'
+            ),
+          ]),
+          SizedBox(width: 8),
+        ],
       ),
       body: Center(
         child: ConstrainedBox(
