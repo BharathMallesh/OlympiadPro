@@ -2,7 +2,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../app/theme.dart';
-import '../../data/mock.dart';
+import '../../data/stores.dart';
 import '../../data/repo.dart';
 import '../../models/models.dart';
 import '../../widgets/common.dart';

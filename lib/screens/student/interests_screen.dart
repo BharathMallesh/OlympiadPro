@@ -35,10 +35,6 @@ class _AcademicInterestsScreenState extends State<AcademicInterestsScreen> {
           title: Text('OlympiadPro',
               style: Theme.of(context).textTheme.titleLarge
                   ?.copyWith(color: AppColors.primary, fontWeight: FontWeight.w700)),
-          actions: [
-            TextButton(onPressed: () {}, child: const Text('Help')),
-            const SizedBox(width: 8),
-          ],
         ),
         body: Center(
           child: ConstrainedBox(

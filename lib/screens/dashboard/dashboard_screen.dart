@@ -316,36 +316,30 @@ class _StudentRow extends StatelessWidget {
     final rollNo = student['roll_no'] as String? ?? '';
     final tag = student['tag'] as String?;
     final accessCode = student['access_code'] as String? ?? '';
-    return InkWell(
-      borderRadius: BorderRadius.circular(AppRadius.lg),
-      onTap: () => context.push('/analytics/student/${student['id']}'),
-      child: AppCard(
-        padding: const EdgeInsets.all(14),
-        child: Row(children: [
-          InitialsAvatar(name, size: 42),
-          const SizedBox(width: 14),
-          Expanded(
-            flex: 3,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(name, style: Theme.of(context).textTheme.titleMedium),
-                Text(tag == null || tag.isEmpty ? rollNo : '$rollNo · $tag',
-                    style: Theme.of(context).textTheme.bodySmall,
-                    overflow: TextOverflow.ellipsis),
-              ],
-            ),
+    return AppCard(
+      padding: const EdgeInsets.all(14),
+      child: Row(children: [
+        InitialsAvatar(name, size: 42),
+        const SizedBox(width: 14),
+        Expanded(
+          flex: 3,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(name, style: Theme.of(context).textTheme.titleMedium),
+              Text(tag == null || tag.isEmpty ? rollNo : '$rollNo · $tag',
+                  style: Theme.of(context).textTheme.bodySmall,
+                  overflow: TextOverflow.ellipsis),
+            ],
           ),
-          Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-            Text(accessCode,
-                style: AppTheme.mono(13, FontWeight.w700,
-                    color: AppColors.teal)),
-            Text('ACCESS CODE', style: AppTheme.mono(8, FontWeight.w500)),
-          ]),
-          const SizedBox(width: 8),
-          const Icon(Icons.chevron_right, color: AppColors.muted),
+        ),
+        Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+          Text(accessCode,
+              style: AppTheme.mono(13, FontWeight.w700,
+                  color: AppColors.teal)),
+          Text('ACCESS CODE', style: AppTheme.mono(8, FontWeight.w500)),
         ]),
-      ),
+      ]),
     );
   }
 }

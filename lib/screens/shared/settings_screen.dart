@@ -62,7 +62,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         ],
                       ),
                     ),
-                    TextButton(onPressed: () {}, child: const Text('Edit')),
                   ]),
                 ),
                 const SizedBox(height: 16),

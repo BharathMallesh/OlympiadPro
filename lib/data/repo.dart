@@ -236,9 +236,6 @@ class Repo {
       (await api.post('/v1/student/practice/explain',
           {'question_id': questionId})) as Map<String, dynamic>;
 
-  static Future<List<dynamic>> studentHistory(String studentId) async =>
-      (await api.get('/v1/analytics/student/$studentId')) as List<dynamic>;
-
   // ---- Student flow ----
 
   static Future<Map<String, dynamic>> studentLogin(

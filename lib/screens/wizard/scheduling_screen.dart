@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../app/theme.dart';
-import '../../data/mock.dart';
+import '../../data/stores.dart';
 import '../../widgets/common.dart';
 import 'wizard_shell.dart';
 

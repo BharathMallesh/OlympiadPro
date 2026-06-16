@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../app/theme.dart';
 import '../../data/api.dart';
-import '../../data/mock.dart';
+import '../../data/stores.dart';
 import '../../data/repo.dart';
 import '../../widgets/common.dart';
 

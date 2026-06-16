@@ -17,13 +17,10 @@ import '../screens/wizard/edit_question_screen.dart';
 import '../screens/wizard/finalize_settings_screen.dart';
 import '../screens/wizard/review_publish_screen.dart';
 import '../screens/wizard/publish_success_screen.dart';
-import '../screens/live/live_exam_console_screen.dart';
-import '../screens/live/live_proctoring_screen.dart';
 import '../screens/grading/submission_list_screen.dart';
 import '../screens/grading/manual_grading_screen.dart';
 import '../screens/analytics/exam_analytics_screen.dart';
 import '../screens/analytics/class_heatmap_screen.dart';
-import '../screens/analytics/student_deep_dive_screen.dart';
 import '../screens/student/registration_screen.dart';
 import '../screens/student/interests_screen.dart';
 import '../screens/student/join_class_screen.dart';
@@ -32,15 +29,11 @@ import '../screens/student/practice_generator_screen.dart';
 import '../screens/student/practice_review_screen.dart';
 import '../screens/student/practice_session_screen.dart';
 import '../screens/student/exam_question_screen.dart';
-import '../screens/student/exam_analysis_screen.dart';
 import '../screens/student/practice_results_screen.dart';
-import '../screens/student/solution_view_screen.dart';
-import '../screens/student/problem_analysis_screen.dart';
 import '../screens/student/profile_screen.dart';
 import '../screens/student/my_exams_screen.dart';
 import '../screens/auth/forgot_password_screen.dart';
 import '../screens/bank/question_bank_screen.dart';
-import '../screens/live/incident_review_screen.dart';
 import '../screens/shared/notifications_screen.dart';
 import '../screens/shared/settings_screen.dart';
 import '../screens/dashboard/roster_screen.dart';
@@ -92,9 +85,7 @@ final router = GoRouter(
     GoRoute(path: '/wizard/review', pageBuilder: (c, s) => _page(const ReviewPublishScreen(), s)),
     GoRoute(path: '/wizard/success', pageBuilder: (c, s) => _page(const PublishSuccessScreen(), s)),
 
-    // Live & grading
-    GoRoute(path: '/live/console', pageBuilder: (c, s) => _page(const LiveExamConsoleScreen(), s)),
-    GoRoute(path: '/live/proctoring', pageBuilder: (c, s) => _page(const LiveProctoringScreen(), s)),
+    // Grading
     GoRoute(
         path: '/grading/submissions',
         pageBuilder: (c, s) => _page(
@@ -109,12 +100,6 @@ final router = GoRouter(
     // Analytics
     GoRoute(path: '/analytics/exam', pageBuilder: (c, s) => _page(const ExamAnalyticsScreen(), s)),
     GoRoute(path: '/analytics/class', pageBuilder: (c, s) => _page(const ClassHeatmapScreen(), s)),
-    GoRoute(
-      path: '/analytics/student/:id',
-      pageBuilder: (c, s) =>
-          _page(StudentDeepDiveScreen(studentId: s.pathParameters['id'] ?? ''), s),
-    ),
-    GoRoute(path: '/analytics/student', redirect: (c, s) => '/analytics/student/-'),
 
     // ---- Student flow ----
     GoRoute(path: '/student/register', pageBuilder: (c, s) => _page(const StudentRegistrationScreen(), s)),
@@ -127,7 +112,6 @@ final router = GoRouter(
         pageBuilder: (c, s) => _page(
             ExamQuestionScreen(examId: s.uri.queryParameters['exam'] ?? ''),
             s)),
-    GoRoute(path: '/student/exam-analysis', pageBuilder: (c, s) => _page(const StudentExamAnalysisScreen(), s)),
     GoRoute(
         path: '/student/practice-session',
         pageBuilder: (c, s) => _page(
@@ -144,8 +128,6 @@ final router = GoRouter(
             PracticeReviewScreen(
                 sessionId: s.uri.queryParameters['session'] ?? ''),
             s)),
-    GoRoute(path: '/student/solution', pageBuilder: (c, s) => _page(const SolutionViewScreen(), s)),
-    GoRoute(path: '/student/problem-analysis', pageBuilder: (c, s) => _page(const ProblemAnalysisScreen(), s)),
     GoRoute(path: '/student/profile', pageBuilder: (c, s) => _page(const StudentProfileScreen(), s)),
     GoRoute(path: '/student/exams', pageBuilder: (c, s) => _page(const MyExamsScreen(), s)),
     GoRoute(path: '/student/settings', pageBuilder: (c, s) => _page(const SettingsScreen(role: 'student'), s)),
@@ -153,7 +135,6 @@ final router = GoRouter(
     // ---- Shared / new flows ----
     GoRoute(path: '/forgot-password', pageBuilder: (c, s) => _page(const ForgotPasswordScreen(), s)),
     GoRoute(path: '/bank', pageBuilder: (c, s) => _page(const QuestionBankScreen(), s)),
-    GoRoute(path: '/live/incident', pageBuilder: (c, s) => _page(const IncidentReviewScreen(), s)),
     GoRoute(
       path: '/notifications',
       pageBuilder: (c, s) => _page(

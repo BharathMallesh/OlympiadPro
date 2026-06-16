@@ -96,17 +96,6 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                                   controller: _title,
                                   hint: 'Senior Faculty of Competitive Math'),
                               const SizedBox(height: 20),
-                              Center(
-                                child: TextButton.icon(
-                                  onPressed: () {},
-                                  icon: const Icon(Icons.account_balance_outlined,
-                                      size: 16, color: AppColors.teal),
-                                  label: Text('Institutional Login',
-                                      style: Theme.of(context).textTheme.bodyMedium
-                                          ?.copyWith(color: AppColors.teal)),
-                                ),
-                              ),
-                              const SizedBox(height: 8),
                               AppButton('Continue',
                                   expand: true,
                                   trailingIcon: Icons.arrow_forward,

@@ -16,7 +16,6 @@ const kNavDestinations = <NavDest>[
   NavDest('Question Bank', Icons.menu_book_outlined, '/bank'),
   NavDest('My Classes', Icons.groups_outlined, '/analytics/class'),
   NavDest('Exam Creator', Icons.edit_note_outlined, '/wizard/details'),
-  NavDest('Live Proctoring', Icons.sensors_outlined, '/live/console'),
   NavDest('Grading', Icons.star_outline, '/grading/submissions'),
   NavDest('Analytics', Icons.bar_chart_outlined, '/analytics/exam'),
 ];

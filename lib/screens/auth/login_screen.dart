@@ -173,38 +173,6 @@ class _LoginScreenState extends State<LoginScreen> {
                       const SizedBox(height: 24),
                       AppButton(_busy ? 'Signing In…' : 'Sign In',
                           expand: true, onPressed: _signIn),
-                      const SizedBox(height: 22),
-                      Row(children: [
-                        const Expanded(child: Divider()),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
-                          child: Text('INSTITUTIONAL ACCESS',
-                              style: AppTheme.mono(10, FontWeight.w500, ls: 1.2)),
-                        ),
-                        const Expanded(child: Divider()),
-                      ]),
-                      const SizedBox(height: 18),
-                      Row(children: [
-                        Expanded(
-                            child: AppButton('Google',
-                                kind: AppBtnKind.ghost,
-                                icon: Icons.g_mobiledata,
-                                expand: true,
-                                onPressed: () => ScaffoldMessenger.of(context)
-                                    .showSnackBar(const SnackBar(
-                                        content: Text(
-                                            'Google sign-in is coming soon'))))),
-                        const SizedBox(width: 12),
-                        Expanded(
-                            child: AppButton('SSO',
-                                kind: AppBtnKind.ghost,
-                                icon: Icons.account_balance_outlined,
-                                expand: true,
-                                onPressed: () => ScaffoldMessenger.of(context)
-                                    .showSnackBar(const SnackBar(
-                                        content:
-                                            Text('SSO is coming soon'))))),
-                      ]),
                     ],
                   ),
                 ),

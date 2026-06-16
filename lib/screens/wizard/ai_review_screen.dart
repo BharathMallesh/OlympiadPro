@@ -3,7 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../app/theme.dart';
-import '../../data/mock.dart';
+import '../../data/stores.dart';
 import '../../data/repo.dart';
 import '../../models/models.dart';
 import '../../widgets/common.dart';
@@ -112,10 +112,6 @@ class _AiReviewScreenState extends State<AiReviewScreen> {
             onPressed: () => context.go('/wizard/upload')),
         title: Text('AI Review & Edit',
             style: Theme.of(context).textTheme.titleLarge),
-        actions: [
-          AppButton('Filter', kind: AppBtnKind.ghost, icon: Icons.filter_list, onPressed: () {}),
-          const SizedBox(width: 12),
-        ],
       ),
       body: ListenableBuilder(
         listenable: questionStore,
@@ -212,12 +208,6 @@ class _QuestionCard extends StatelessWidget {
             StatusChip(parsed ? 'Auto-Parsed' : 'Review Needed',
                 color: statusColor,
                 icon: parsed ? Icons.check : Icons.visibility),
-            const SizedBox(width: 10),
-            TextButton.icon(
-              onPressed: () {},
-              icon: const Icon(Icons.visibility_outlined, size: 14),
-              label: const Text('View Original'),
-            ),
           ]),
           const SizedBox(height: 14),
           Row(
@@ -282,7 +272,6 @@ class _QuestionCard extends StatelessWidget {
                 const Icon(Icons.warning_amber, color: AppColors.secondary, size: 16),
                 const SizedBox(width: 10),
                 Expanded(child: Text(q.warning!, style: Theme.of(context).textTheme.bodySmall)),
-                AppButton('Compare', kind: AppBtnKind.ghost, onPressed: () {}),
               ]),
             ),
           ],
@@ -292,13 +281,6 @@ class _QuestionCard extends StatelessWidget {
                 kind: AppBtnKind.ghost,
                 icon: Icons.edit_outlined,
                 onPressed: () => context.push('/wizard/edit-question/$index')),
-            const SizedBox(width: 10),
-            AppButton('Regenerate',
-                kind: AppBtnKind.ghost, icon: Icons.refresh, onPressed: () {}),
-            if (q.warning != null) ...[
-              const SizedBox(width: 10),
-              AppButton('AI Fix', kind: AppBtnKind.secondary, icon: Icons.auto_fix_high, onPressed: () {}),
-            ],
           ]),
         ],
       ),
