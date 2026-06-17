@@ -52,6 +52,7 @@ class QuestionItem {
     'multiple_choice': 'Multiple Choice',
     'numeric': 'Numeric',
     'short_answer': 'Short Answer',
+    'long_answer': 'Long Answer',
   };
 
   String get qtype => _typeMap.entries
