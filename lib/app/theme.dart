@@ -28,8 +28,10 @@ class AppColors {
   static const onSecondary = Color(0xFF552000);
   static const secondaryStrong = Color(0xFFFF8A4C);
 
-  static const teal = Color(0xFF6BD8CB);
-  static const tealStrong = Color(0xFF29A195);
+  // Accent is amber (Indigo + Amber brand). The `teal` names are kept as
+  // aliases so existing usages flip to amber without touching 60 call sites.
+  static const teal = Color(0xFFFFB691);
+  static const tealStrong = Color(0xFFFF8A4C);
 
   static const success = Color(0xFF4EDEA3);
   static const onSuccess = Color(0xFF003824);
