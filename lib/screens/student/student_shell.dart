@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../app/theme.dart';
 import '../../data/api.dart';
+import '../../widgets/brand_mark.dart';
 import '../../widgets/common.dart';
 
 /// Bottom-nav scaffold for the student side (Home / Practice / Exams /
@@ -52,7 +53,7 @@ class StudentShell extends StatelessWidget {
               (leading == null && !Navigator.of(context).canPop()) ? 16 : 0,
           title: Row(children: [
             if (leading == null) ...[
-              const Icon(Icons.school_rounded, color: AppColors.primary, size: 22),
+              const BrandMark(size: 26),
               const SizedBox(width: 8),
             ],
             Text(title,

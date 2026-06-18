@@ -58,14 +58,15 @@ class _LoginScreenState extends State<LoginScreen> {
               children: [
                 // Brand
                 Container(
-                  width: 64,
-                  height: 64,
+                  width: 76,
+                  height: 76,
+                  padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: AppColors.primary,
+                    color: Colors.white,
                     borderRadius: BorderRadius.circular(AppRadius.xl),
                   ),
-                  child: const Icon(Icons.school_rounded,
-                      color: AppColors.onPrimary, size: 34),
+                  child: Image.asset('assets/vidyora-mark.png',
+                      fit: BoxFit.contain),
                 ),
                 const SizedBox(height: 16),
                 Text('Vidyora',

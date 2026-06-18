@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../app/theme.dart';
 import '../data/api.dart';
+import 'brand_mark.dart';
 import 'common.dart';
 
 class NavDest {
@@ -136,7 +137,7 @@ class _Sidebar extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 24, 20, 12),
             child: Row(children: [
-              const Icon(Icons.school_rounded, color: AppColors.primary, size: 26),
+              const BrandMark(size: 30),
               const SizedBox(width: 10),
               Text(brand,
                   style: Theme.of(context).textTheme.titleLarge?.copyWith(
