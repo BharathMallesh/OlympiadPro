@@ -204,6 +204,38 @@ class _BankRow extends StatelessWidget {
           ]),
           const SizedBox(height: 10),
           MixedMathText(q.prompt.isEmpty ? '-' : q.prompt, fontSize: 15),
+          // Question image(s) shown directly below the prompt.
+          if (q.imageUrls.isNotEmpty || q.images.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Wrap(spacing: 8, runSpacing: 8, children: [
+              for (final url in q.imageUrls)
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(AppRadius.md),
+                  child: Image.network(url,
+                      height: 150, fit: BoxFit.contain,
+                      loadingBuilder: (c, child, p) => p == null
+                          ? child
+                          : Container(
+                              height: 150, width: 200,
+                              alignment: Alignment.center,
+                              color: AppColors.surfaceHigh,
+                              child: const SizedBox(
+                                  width: 20, height: 20,
+                                  child: CircularProgressIndicator(strokeWidth: 2))),
+                      errorBuilder: (c, e, s) => Container(
+                          height: 150, width: 200,
+                          alignment: Alignment.center,
+                          color: AppColors.surfaceHigh,
+                          child: const Icon(Icons.broken_image_outlined,
+                              color: AppColors.muted))),
+                ),
+              for (final bytes in q.images)
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(AppRadius.md),
+                  child: Image.memory(bytes, height: 150, fit: BoxFit.contain),
+                ),
+            ]),
+          ],
           if (q.options.isNotEmpty) ...[
             const SizedBox(height: 10),
             Wrap(spacing: 8, runSpacing: 6, children: [
