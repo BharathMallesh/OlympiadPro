@@ -381,7 +381,7 @@ class _QuestionCardState extends State<_QuestionCard> {
                     width: 150,
                     height: 100,
                     decoration: BoxDecoration(
-                      color: Colors.black,
+                      color: AppColors.surfaceHigh,
                       borderRadius: BorderRadius.circular(AppRadius.md),
                       border: Border.all(color: AppColors.outline),
                     ),

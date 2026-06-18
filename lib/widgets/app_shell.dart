@@ -51,7 +51,7 @@ class AppShell extends StatelessWidget {
       child: Scaffold(
       backgroundColor: AppColors.scaffold,
       drawer: wide ? null : Drawer(
-        backgroundColor: AppColors.surface,
+        backgroundColor: AppColors.navy,
         child: SafeArea(child: _Sidebar(currentRoute: currentRoute, brand: brand)),
       ),
       appBar: wide
@@ -75,7 +75,7 @@ class AppShell extends StatelessWidget {
             SizedBox(
               width: 248,
               child: Material(
-                color: AppColors.surface,
+                color: AppColors.navy,
                 child: _Sidebar(currentRoute: currentRoute, brand: brand),
               ),
             ),
@@ -141,7 +141,8 @@ class _Sidebar extends StatelessWidget {
               const SizedBox(width: 10),
               Text(brand,
                   style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      color: AppColors.primary, fontWeight: FontWeight.w700)),
+                      color: Colors.white, fontWeight: FontWeight.w700,
+                      letterSpacing: 1.5)),
             ]),
           ),
           // Profile chip
@@ -149,9 +150,9 @@ class _Sidebar extends StatelessWidget {
             margin: const EdgeInsets.fromLTRB(12, 8, 12, 16),
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: AppColors.surfaceContainer,
+              color: Colors.white.withValues(alpha: 0.08),
               borderRadius: BorderRadius.circular(AppRadius.lg),
-              border: Border.all(color: AppColors.outline),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
             ),
             child: Row(children: [
               InitialsAvatar(api.displayName ?? 'Educator', size: 38),
@@ -159,11 +160,13 @@ class _Sidebar extends StatelessWidget {
               Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text(api.displayName ?? 'Educator',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: AppColors.onSurface, fontWeight: FontWeight.w600),
+                      style: const TextStyle(
+                          color: Colors.white, fontWeight: FontWeight.w600,
+                          fontSize: 14),
                       overflow: TextOverflow.ellipsis),
                   Text(api.displaySubtitle ?? 'Educator',
-                      style: AppTheme.mono(10, FontWeight.w500, ls: 0.5),
+                      style: AppTheme.mono(10, FontWeight.w500, ls: 0.5,
+                          color: Colors.white70),
                       overflow: TextOverflow.ellipsis),
                 ]),
               ),
@@ -200,7 +203,7 @@ class _NavTile extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 3),
       child: Material(
-        color: selected ? AppColors.primaryStrong.withValues(alpha: 0.18) : Colors.transparent,
+        color: selected ? Colors.white.withValues(alpha: 0.14) : Colors.transparent,
         borderRadius: BorderRadius.circular(AppRadius.md),
         child: InkWell(
           borderRadius: BorderRadius.circular(AppRadius.md),
@@ -215,12 +218,12 @@ class _NavTile extends StatelessWidget {
             child: Row(children: [
               Icon(dest.icon,
                   size: 20,
-                  color: selected ? AppColors.primary : AppColors.onSurfaceVariant),
+                  color: selected ? AppColors.gold : Colors.white70),
               const SizedBox(width: 12),
               Text(dest.label,
                   style: TextStyle(
                     fontSize: 14,
-                    color: selected ? AppColors.primary : AppColors.onSurfaceVariant,
+                    color: selected ? Colors.white : Colors.white70,
                     fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
                   )),
             ]),
