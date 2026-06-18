@@ -204,10 +204,14 @@ class _BankRow extends StatelessWidget {
           ]),
           const SizedBox(height: 10),
           MixedMathText(q.prompt.isEmpty ? '-' : q.prompt, fontSize: 15),
-          // Question image(s) shown directly below the prompt.
+          // Question image(s) shown centered, directly below the prompt.
           if (q.imageUrls.isNotEmpty || q.images.isNotEmpty) ...[
             const SizedBox(height: 10),
-            Wrap(spacing: 8, runSpacing: 8, children: [
+            SizedBox(
+              width: double.infinity,
+              child: Wrap(
+                  alignment: WrapAlignment.center,
+                  spacing: 8, runSpacing: 8, children: [
               for (final url in q.imageUrls)
                 ClipRRect(
                   borderRadius: BorderRadius.circular(AppRadius.md),
@@ -234,7 +238,7 @@ class _BankRow extends StatelessWidget {
                   borderRadius: BorderRadius.circular(AppRadius.md),
                   child: Image.memory(bytes, height: 150, fit: BoxFit.contain),
                 ),
-            ]),
+            ])),
           ],
           if (q.options.isNotEmpty) ...[
             const SizedBox(height: 10),
