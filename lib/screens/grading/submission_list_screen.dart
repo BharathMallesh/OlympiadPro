@@ -102,7 +102,7 @@ class _SubmissionListScreenState extends State<SubmissionListScreen> {
         : (scores.reduce((a, b) => a + b) / scores.length).toStringAsFixed(1);
 
     return AppShell(
-      brand: 'OlympiadPro',
+      brand: 'Vidyora',
       currentRoute: '/grading/submissions',
       titleWidget: Row(children: [
         Text('Exams',

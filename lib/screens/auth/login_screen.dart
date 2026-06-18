@@ -68,7 +68,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       color: AppColors.onPrimary, size: 34),
                 ),
                 const SizedBox(height: 16),
-                Text('OlympiadPro',
+                Text('Vidyora',
                     style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                         color: AppColors.primary, fontWeight: FontWeight.w700)),
                 const SizedBox(height: 4),
@@ -143,7 +143,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           icon: Icons.mail_outline,
                           hint: _isStudent
                               ? 'student@school.edu'
-                              : 'educator@olympiadpro.edu'),
+                              : 'educator@vidyora.edu'),
                       const SizedBox(height: 18),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,

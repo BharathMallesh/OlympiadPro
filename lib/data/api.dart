@@ -17,7 +17,7 @@ class ApiException implements Exception {
   String toString() => message;
 }
 
-/// HTTP client for the OlympiadPro Rust backend. Holds the bearer token
+/// HTTP client for the Vidyora Rust backend. Holds the bearer token
 /// (persisted to shared_preferences) for whichever role is signed in.
 class ApiClient {
   ApiClient._();

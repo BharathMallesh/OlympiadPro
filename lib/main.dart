@@ -12,16 +12,16 @@ Future<void> main() async {
   await connectivity.init();
   // When any request gets a 401, clear the session and send the user to login.
   api.onUnauthorized = () => router.go('/login');
-  runApp(const OlympiadProApp());
+  runApp(const VidyoraApp());
 }
 
-class OlympiadProApp extends StatelessWidget {
-  const OlympiadProApp({super.key});
+class VidyoraApp extends StatelessWidget {
+  const VidyoraApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp.router(
-      title: 'OlympiadPro · Educator',
+      title: 'Vidyora · Educator',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.dark,
       routerConfig: router,

@@ -39,7 +39,7 @@ class PublishSuccessScreen extends StatelessWidget {
       backgroundColor: AppColors.background,
       appBar: AppBar(
         backgroundColor: AppColors.background,
-        title: Text('OlympiadPro Console',
+        title: Text('Vidyora Console',
             style: Theme.of(context).textTheme.titleLarge
                 ?.copyWith(color: AppColors.primary, fontWeight: FontWeight.w700)),
         actions: [

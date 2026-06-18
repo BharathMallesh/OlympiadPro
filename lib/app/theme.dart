@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-/// Central design tokens derived from the OlympiadPro / MathKraft
+/// Central design tokens derived from the Vidyora / MathKraft
 /// "Academic Dark" design system.
 class AppColors {
   // Surfaces (Deep Space tonal layers)

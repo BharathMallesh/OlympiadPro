@@ -70,7 +70,7 @@ class _StudentHubScreenState extends State<StudentHubScreen> {
   @override
   Widget build(BuildContext context) {
     return StudentShell(
-      title: 'OlympiadPro',
+      title: 'Vidyora',
       currentTab: 0,
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(AppSpacing.md),

@@ -75,7 +75,7 @@ class _ClassHeatmapScreenState extends State<ClassHeatmapScreen> {
   @override
   Widget build(BuildContext context) {
     return AppShell(
-      brand: 'OlympiadPro',
+      brand: 'Vidyora',
       currentRoute: '/analytics/class',
       title: 'Class Analytics',
       actions: [

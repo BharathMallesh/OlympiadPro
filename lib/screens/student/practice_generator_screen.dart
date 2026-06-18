@@ -149,7 +149,7 @@ class _PracticeGeneratorScreenState extends State<PracticeGeneratorScreen> {
   @override
   Widget build(BuildContext context) {
     return StudentShell(
-      title: 'OlympiadPro',
+      title: 'Vidyora',
       currentTab: 1,
       body: _loading
           ? const Center(child: CircularProgressIndicator())

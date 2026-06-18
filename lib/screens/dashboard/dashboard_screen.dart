@@ -59,7 +59,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget build(BuildContext context) {
     final teacherName = _me?['full_name'] as String? ?? '·';
     return AppShell(
-      brand: 'OlympiadPro',
+      brand: 'Vidyora',
       currentRoute: '/dashboard',
       title: 'Dashboard',
       actions: [

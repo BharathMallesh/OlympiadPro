@@ -198,7 +198,7 @@ class _OnboardingFinalizeScreenState extends State<OnboardingFinalizeScreen> {
         child: Row(children: [
           const Icon(Icons.school_rounded, color: AppColors.primary),
           const SizedBox(width: 8),
-          Text('OlympiadPro',
+          Text('Vidyora',
               style: Theme.of(context).textTheme.titleLarge
                   ?.copyWith(color: AppColors.primary, fontWeight: FontWeight.w700)),
         ]),

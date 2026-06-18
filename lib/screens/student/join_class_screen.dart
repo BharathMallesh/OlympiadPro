@@ -31,7 +31,7 @@ class _JoinClassScreenState extends State<JoinClassScreen> {
               tooltip: 'Back',
               icon: const Icon(Icons.arrow_back),
               onPressed: () => context.go('/student/interests')),
-          title: Text('OlympiadPro',
+          title: Text('Vidyora',
               style: Theme.of(context).textTheme.titleLarge
                   ?.copyWith(color: AppColors.primary, fontWeight: FontWeight.w700)),
           actions: [

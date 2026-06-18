@@ -78,7 +78,7 @@ class _ReviewPublishScreenState extends State<ReviewPublishScreen> {
       backgroundColor: AppColors.scaffold,
       appBar: AppBar(
         backgroundColor: AppColors.background,
-        title: Text('OlympiadPro',
+        title: Text('Vidyora',
             style: Theme.of(context).textTheme.titleLarge
                 ?.copyWith(color: AppColors.primary, fontWeight: FontWeight.w700)),
         actions: [
@@ -222,7 +222,7 @@ class _ReviewPublishScreenState extends State<ReviewPublishScreen> {
                                 padding: const EdgeInsets.only(top: 12),
                                 child: Text(
                                     'I confirm that this examination paper adheres to the '
-                                    'internal academic standards of OlympiadPro and follows '
+                                    'internal academic standards of Vidyora and follows '
                                     'the JEE curriculum guidelines. I acknowledge that '
                                     'publishing this exam will notify all registered '
                                     'candidates in the selected categories.',

@@ -33,7 +33,7 @@ class _AcademicInterestsScreenState extends State<AcademicInterestsScreen> {
               tooltip: 'Back',
               icon: const Icon(Icons.arrow_back),
               onPressed: () => context.go('/student/register')),
-          title: Text('OlympiadPro',
+          title: Text('Vidyora',
               style: Theme.of(context).textTheme.titleLarge
                   ?.copyWith(color: AppColors.primary, fontWeight: FontWeight.w700)),
           actions: const [

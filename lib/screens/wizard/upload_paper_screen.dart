@@ -55,7 +55,7 @@ class _UploadPaperScreenState extends State<UploadPaperScreen> {
         backgroundColor: AppColors.background,
         leading: IconButton(
             icon: const Icon(Icons.menu), onPressed: () => context.go('/dashboard')),
-        title: Text('OlympiadPro',
+        title: Text('Vidyora',
             style: Theme.of(context).textTheme.titleLarge
                 ?.copyWith(color: AppColors.primary, fontWeight: FontWeight.w700)),
         actions: [

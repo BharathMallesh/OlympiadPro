@@ -29,7 +29,7 @@ class AppShell extends StatelessWidget {
     required this.body,
     this.currentRoute,
     this.actions,
-    this.brand = 'OlympiadPro',
+    this.brand = 'Vidyora',
     this.titleWidget,
     this.bottomBar,
   });

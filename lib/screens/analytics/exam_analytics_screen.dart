@@ -77,7 +77,7 @@ class _ExamAnalyticsScreenState extends State<ExamAnalyticsScreen> {
   @override
   Widget build(BuildContext context) {
     return AppShell(
-      brand: 'OlympiadPro',
+      brand: 'Vidyora',
       currentRoute: '/analytics/exam',
       title: 'Exam Analytics',
       body: _buildBody(context),
