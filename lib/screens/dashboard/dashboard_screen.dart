@@ -79,6 +79,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   onRefresh: _load,
                   child: LayoutBuilder(builder: (context, c) {
                     final wide = c.maxWidth >= 760;
+                    // Cap content on large monitors so the dashboard stays
+                    // centred and aligned instead of stretching edge-to-edge.
+                    final contentWidth =
+                        c.maxWidth > 1100 ? 1100.0 : c.maxWidth;
                     final stats = _stats ?? {};
                     final studentCount = (stats['students'] as num?)?.toInt() ?? 0;
                     final pendingGrading =
@@ -89,8 +93,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         (stats['exams_total'] as num?)?.toInt() ?? 0;
                     return SingleChildScrollView(
                       physics: const AlwaysScrollableScrollPhysics(),
-                      padding: const EdgeInsets.all(AppSpacing.lg),
-                      child: Column(
+                      child: Center(
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 1100),
+                          child: Padding(
+                            padding: const EdgeInsets.all(AppSpacing.lg),
+                            child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Flex(
@@ -154,8 +162,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               for (final exam in _exams)
                                 SizedBox(
                                   width: wide
-                                      ? (c.maxWidth - 48 - 32) / 3
-                                      : c.maxWidth - 48,
+                                      ? (contentWidth - 48 - 32) / 3
+                                      : contentWidth - 48,
                                   child: _ExamCard(
                                       exam: exam as Map<String, dynamic>),
                                 ),
@@ -183,6 +191,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                   _StudentRow(student: s as Map<String, dynamic>),
                             ),
                         ],
+                      ),
+                      ),
+                      ),
                       ),
                     );
                   }),

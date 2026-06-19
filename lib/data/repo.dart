@@ -3,6 +3,14 @@ import 'api.dart';
 /// Typed wrappers over the backend API. All methods return decoded JSON
 /// (maps/lists) — screens map these onto their own view state.
 class Repo {
+  /// Unauthenticated: classes a registering student can pick from (the
+  /// platform's, or a specific teacher's when a join code is given).
+  static Future<List<dynamic>> publicClasses({String? teacherCode}) async =>
+      (await api.get('/v1/student/classes', query: {
+        if (teacherCode != null && teacherCode.trim().isNotEmpty)
+          'teacher_code': teacherCode.trim(),
+      })) as List<dynamic>;
+
   // ---- Teacher auth ----
 
   static Future<Map<String, dynamic>> teacherRegister({
@@ -40,7 +48,10 @@ class Repo {
   static Future<void> _captureTeacherIdentity(dynamic r) async {
     final t = r['teacher'] as Map<String, dynamic>?;
     if (t != null) {
-      final role = t['role'] == 'admin' ? 'Super Admin' : 'Educator';
+      // Label shown under the user's name in the shell. The platform founder is
+      // 'Founder'; institution admins, validators and teachers are all
+      // 'Educator' (they use the same educator app).
+      final role = t['role'] == 'super_admin' ? 'Founder' : 'Educator';
       await api.setIdentity(t['full_name'] as String?, role);
     }
   }
@@ -121,6 +132,77 @@ class Repo {
   static Future<Map<String, dynamic>> removeQuestionImage(
           String id, String url) async =>
       (await api.delete('/v1/questions/$id/images', {'url': url}))
+          as Map<String, dynamic>;
+
+  // ---- Syllabus → AI generation → review (validator / teacher) ----
+
+  /// Stored syllabi with their chapter lists.
+  static Future<List<dynamic>> syllabi() async =>
+      (await api.get('/v1/syllabi')) as List<dynamic>;
+
+  /// Upload a syllabus PDF for a subject; the server extracts its chapters
+  /// (Gemini), so allow plenty of time.
+  static Future<Map<String, dynamic>> uploadSyllabus(
+          List<int> bytes, String filename, String subject,
+          {String? classId}) async =>
+      (await api.upload('/v1/syllabi',
+          bytes: bytes,
+          filename: filename,
+          fields: {
+            'subject': subject,
+            if (classId != null && classId.isNotEmpty) 'class_id': classId,
+          },
+          timeout: const Duration(seconds: 180))) as Map<String, dynamic>;
+
+  /// Generate a mix of questions for the chosen chapters into staging.
+  static Future<Map<String, dynamic>> generateFromSyllabus(
+    String syllabusId, {
+    required List<String> chapterIds,
+    int mcq = 0,
+    int short = 0,
+    int long = 0,
+  }) async {
+    return (await api.post('/v1/syllabi/$syllabusId/generate', {
+      'chapter_ids': chapterIds,
+      'mcq': mcq,
+      'short': short,
+      'long': long,
+    }, const Duration(seconds: 240))) as Map<String, dynamic>;
+  }
+
+  /// Generated questions awaiting review (`pending`) or history (`approved`).
+  static Future<List<dynamic>> generatedQuestions({String status = 'pending'}) async =>
+      (await api.get('/v1/chapters/generated', query: {'status': status}))
+          as List<dynamic>;
+
+  /// Fix a pending generated question before approving (mark the correct
+  /// option and/or edit the prompt).
+  static Future<Map<String, dynamic>> editGenerated(String id,
+      {int? correct, String? prompt}) async {
+    return (await api.put('/v1/chapters/generated/$id', {
+      if (correct != null) 'correct': correct,
+      if (prompt != null) 'prompt': prompt,
+    })) as Map<String, dynamic>;
+  }
+
+  /// Bank MCQs that still have no correct option flagged (imported/parsed
+  /// questions awaiting an answer key) — shown in the validator Review tab.
+  static Future<List<dynamic>> bankNeedsKey() async =>
+      (await api.get('/v1/questions/needs-key')) as List<dynamic>;
+
+  /// Mark the correct option on a bank MCQ, making it practice-eligible.
+  static Future<Map<String, dynamic>> setAnswerKey(String id, int correct) async =>
+      (await api.post('/v1/questions/$id/answer-key', {'correct': correct}))
+          as Map<String, dynamic>;
+
+  /// Approve a generated question into the live bank (practice/exam eligible).
+  static Future<Map<String, dynamic>> approveGenerated(String id) async =>
+      (await api.post('/v1/chapters/generated/$id/approve'))
+          as Map<String, dynamic>;
+
+  /// Discard a generated question without adding it to the bank.
+  static Future<Map<String, dynamic>> rejectGenerated(String id) async =>
+      (await api.post('/v1/chapters/generated/$id/reject'))
           as Map<String, dynamic>;
 
   // ---- PDF import ----
@@ -263,11 +345,7 @@ class Repo {
       'password': password,
     });
     await api.setSession(r['token'] as String, 'student');
-    final s = r['student'] as Map<String, dynamic>?;
-    if (s != null) {
-      await api.setIdentity(
-          s['full_name'] as String?, 'Roll ${s['roll_no'] ?? ''}'.trim());
-    }
+    _captureStudentIdentity(r);
     return r as Map<String, dynamic>;
   }
 
@@ -276,6 +354,7 @@ class Repo {
     required String email,
     required String password,
     String? teacherCode,
+    String? classId,
   }) async {
     final r = await api.post('/v1/student/register', {
       'full_name': fullName,
@@ -283,14 +362,23 @@ class Repo {
       'password': password,
       if (teacherCode != null && teacherCode.trim().isNotEmpty)
         'teacher_code': teacherCode.trim(),
+      if (classId != null && classId.isNotEmpty) 'class_id': classId,
     });
     await api.setSession(r['token'] as String, 'student');
-    final s = r['student'] as Map<String, dynamic>?;
-    if (s != null) {
-      await api.setIdentity(
-          s['full_name'] as String?, 'Roll ${s['roll_no'] ?? ''}'.trim());
-    }
+    _captureStudentIdentity(r);
     return r as Map<String, dynamic>;
+  }
+
+  /// Subtitle under the student's name shows their class (e.g. "2 PUC-KCET"),
+  /// or their roll number if they didn't join a class.
+  static Future<void> _captureStudentIdentity(dynamic r) async {
+    final s = r['student'] as Map<String, dynamic>?;
+    if (s == null) return;
+    final cls = (s['class'] as String?)?.trim();
+    final subtitle = (cls != null && cls.isNotEmpty)
+        ? cls
+        : 'Roll ${s['roll_no'] ?? ''}'.trim();
+    await api.setIdentity(s['full_name'] as String?, subtitle);
   }
 
   static Future<List<dynamic>> studentExams() async =>

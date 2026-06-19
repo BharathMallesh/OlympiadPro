@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../app/theme.dart';
+import '../../data/api.dart';
 import '../../data/repo.dart';
 import '../../widgets/charts.dart';
 import '../../widgets/common.dart';
@@ -77,6 +78,30 @@ class _StudentHubScreenState extends State<StudentHubScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            Row(children: [
+              Expanded(
+                child: Text('Hi, ${api.displayName ?? 'Student'}',
+                    style: Theme.of(context).textTheme.headlineSmall),
+              ),
+              if ((api.displaySubtitle ?? '').isNotEmpty)
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                  decoration: BoxDecoration(
+                    color: AppColors.primaryContainer,
+                    borderRadius: BorderRadius.circular(AppRadius.pill),
+                  ),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    const Icon(Icons.school,
+                        size: 14, color: AppColors.primary),
+                    const SizedBox(width: 6),
+                    Text(api.displaySubtitle!,
+                        style: AppTheme.mono(12, FontWeight.w700,
+                            color: AppColors.primary)),
+                  ]),
+                ),
+            ]),
+            const SizedBox(height: 16),
             const StudentSection('My Classroom', icon: Icons.school_outlined),
             // Next assigned exam (live from the backend)
             AppCard(

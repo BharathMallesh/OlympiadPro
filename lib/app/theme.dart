@@ -78,22 +78,28 @@ class AppTheme {
             letterSpacing: ls,
             color: AppColors.onSurface);
 
+    // Slightly larger, more readable scale — an exam-prep app is text-heavy,
+    // so bumping body/title sizes (and roomier line-height) makes questions and
+    // dashboards feel more inviting for both teachers and students.
     final textTheme = TextTheme(
-      displaySmall: head(32, FontWeight.w700),
-      headlineLarge: head(28, FontWeight.w700),
-      headlineMedium: head(24, FontWeight.w600),
-      headlineSmall: head(20, FontWeight.w600),
-      titleLarge: head(18, FontWeight.w600, ls: 0),
+      displaySmall: head(34, FontWeight.w700),
+      headlineLarge: head(30, FontWeight.w700),
+      headlineMedium: head(26, FontWeight.w600),
+      headlineSmall: head(22, FontWeight.w600),
+      titleLarge: head(20, FontWeight.w600, ls: 0),
       titleMedium: GoogleFonts.inter(
-          fontSize: 16, fontWeight: FontWeight.w600, color: AppColors.onSurface),
+          fontSize: 17,
+          fontWeight: FontWeight.w600,
+          color: AppColors.onSurface,
+          height: 1.35),
       bodyLarge: GoogleFonts.inter(
-          fontSize: 16, color: AppColors.onSurface, height: 1.5),
+          fontSize: 17, color: AppColors.onSurface, height: 1.55),
       bodyMedium: GoogleFonts.inter(
-          fontSize: 14, color: AppColors.onSurfaceVariant, height: 1.5),
+          fontSize: 15, color: AppColors.onSurfaceVariant, height: 1.55),
       bodySmall: GoogleFonts.inter(
-          fontSize: 12, color: AppColors.muted, height: 1.4),
+          fontSize: 13, color: AppColors.muted, height: 1.45),
       labelLarge: mono(14, FontWeight.w500),
-      labelMedium: mono(12, FontWeight.w500),
+      labelMedium: mono(12.5, FontWeight.w500),
     );
 
     return base.copyWith(

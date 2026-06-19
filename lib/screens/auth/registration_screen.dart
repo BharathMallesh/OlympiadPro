@@ -15,6 +15,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
   final _email = TextEditingController(text: onboardingDraft.email);
   final _password = TextEditingController(text: onboardingDraft.password);
   final _title = TextEditingController(text: onboardingDraft.title);
+  bool _obscure = true;
 
   void _continue() {
     if (_name.text.trim().isEmpty ||
@@ -89,7 +90,20 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                               AppInput(
                                   controller: _password,
                                   hint: 'At least 8 characters',
-                                  obscure: true),
+                                  obscure: _obscure,
+                                  suffix: IconButton(
+                                    tooltip: _obscure
+                                        ? 'Show password'
+                                        : 'Hide password',
+                                    icon: Icon(
+                                        _obscure
+                                            ? Icons.visibility_outlined
+                                            : Icons.visibility_off_outlined,
+                                        size: 18,
+                                        color: AppColors.muted),
+                                    onPressed: () =>
+                                        setState(() => _obscure = !_obscure),
+                                  )),
                               const SizedBox(height: 16),
                               const FieldLabel('Professional Title'),
                               AppInput(
@@ -106,7 +120,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                         const SizedBox(height: 28),
                         Center(
                           child: Text(
-                              '© 2024 OLYMPIADPRO ACADEMIC SYSTEMS · PROFESSIONAL GRADE EDUCATION',
+                              '© 2026 VIDYORA · EXCELLENCE IN ACADEMIC COMPETITION',
                               textAlign: TextAlign.center,
                               style: AppTheme.mono(9.5, FontWeight.w500, ls: 0.8)),
                         ),

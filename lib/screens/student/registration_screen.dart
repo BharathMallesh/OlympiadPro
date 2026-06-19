@@ -21,6 +21,27 @@ class _StudentRegistrationScreenState extends State<StudentRegistrationScreen> {
   final _teacherCode = TextEditingController();
   bool _busy = false;
   bool _obscure = true;
+  String? _classId;
+  List<dynamic> _classes = [];
+  bool _loadingClasses = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadClasses();
+  }
+
+  Future<void> _loadClasses() async {
+    setState(() => _loadingClasses = true);
+    try {
+      final list = await Repo.publicClasses(teacherCode: _teacherCode.text);
+      if (mounted) setState(() => _classes = list);
+    } catch (_) {
+      // Non-fatal: the picker just shows the "no classes" note.
+    } finally {
+      if (mounted) setState(() => _loadingClasses = false);
+    }
+  }
 
   Future<void> _register() async {
     if (_name.text.trim().isEmpty ||
@@ -28,6 +49,12 @@ class _StudentRegistrationScreenState extends State<StudentRegistrationScreen> {
         _password.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
           content: Text('Name, email, and password are required'),
+          backgroundColor: AppColors.error));
+      return;
+    }
+    if (_classId == null && _classes.isNotEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Please select your class'),
           backgroundColor: AppColors.error));
       return;
     }
@@ -44,6 +71,7 @@ class _StudentRegistrationScreenState extends State<StudentRegistrationScreen> {
         email: _email.text.trim(),
         password: _password.text,
         teacherCode: _teacherCode.text,
+        classId: _classId,
       );
       if (mounted) context.go('/student/hub');
     } catch (e) {
@@ -72,7 +100,7 @@ class _StudentRegistrationScreenState extends State<StudentRegistrationScreen> {
           title: Row(children: [
             const Icon(Icons.school_rounded, color: AppColors.primary, size: 24),
             const SizedBox(width: 10),
-            Text('OLYMPIADPRO',
+            Text('VIDYORA',
                 style: AppTheme.mono(16, FontWeight.w700,
                     color: AppColors.onSurface, ls: 1.5)),
           ]),
@@ -104,6 +132,64 @@ class _StudentRegistrationScreenState extends State<StudentRegistrationScreen> {
                       controller: _email,
                       icon: Icons.mail_outline,
                       hint: 'student@school.edu'),
+                  const SizedBox(height: 18),
+                  const FieldLabel('Your Class'),
+                  if (_loadingClasses)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 8),
+                      child: SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2)),
+                    )
+                  else if (_classes.isEmpty)
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: AppColors.surfaceContainer,
+                        borderRadius: BorderRadius.circular(AppRadius.md),
+                      ),
+                      child: Text(
+                          'No classes available yet. Ask your institution to '
+                          'create one, then you can pick it here.',
+                          style: Theme.of(context).textTheme.bodySmall),
+                    )
+                  else
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: _classes.map((c) {
+                        final cls = c as Map<String, dynamic>;
+                        final id = cls['id'] as String;
+                        final sel = _classId == id;
+                        return InkWell(
+                          onTap: () => setState(() => _classId = id),
+                          borderRadius: BorderRadius.circular(AppRadius.pill),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 16, vertical: 10),
+                            decoration: BoxDecoration(
+                              color: sel
+                                  ? AppColors.primary
+                                  : AppColors.surfaceContainer,
+                              borderRadius:
+                                  BorderRadius.circular(AppRadius.pill),
+                              border: Border.all(
+                                  color: sel
+                                      ? AppColors.primary
+                                      : AppColors.outlineStrong),
+                            ),
+                            child: Text(cls['name']?.toString() ?? 'Class',
+                                style: TextStyle(
+                                    color: sel
+                                        ? AppColors.onPrimary
+                                        : AppColors.onSurface,
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 14)),
+                          ),
+                        );
+                      }).toList(),
+                    ),
                   const SizedBox(height: 18),
                   const FieldLabel('Password (min 8 characters)'),
                   AppInput(

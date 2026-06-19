@@ -23,10 +23,16 @@ class ApiClient {
   ApiClient._();
   static final ApiClient instance = ApiClient._();
 
-  /// Android emulators reach the host machine via 10.0.2.2.
+  /// Where the API lives. Resolution order:
+  /// 1. `--dart-define=API_BASE_URL=https://your-app.onrender.com` (release
+  ///    builds — point mobile at the deployed backend).
+  /// 2. Web: the same origin the app was served from, so a deployed build talks
+  ///    to its own backend with no hardcoding and no CORS hop.
+  /// 3. Local dev fallbacks: Android emulator → host loopback; else localhost.
+  static const _envBase = String.fromEnvironment('API_BASE_URL');
   static String get baseUrl {
-    if (kIsWeb) return 'http://localhost:8090';
-    // Android emulator → host loopback; everything else → localhost.
+    if (_envBase.isNotEmpty) return _envBase;
+    if (kIsWeb) return Uri.base.origin;
     if (defaultTargetPlatform == TargetPlatform.android) {
       return 'http://10.0.2.2:8090';
     }
@@ -134,12 +140,12 @@ class ApiClient {
     }
   }
 
-  Future<dynamic> post(String path, [Object? body]) async {
+  Future<dynamic> post(String path, [Object? body, Duration? timeout]) async {
     try {
       return _decode(await http
           .post(Uri.parse('$baseUrl$path'),
               headers: _headers, body: body == null ? null : jsonEncode(body))
-          .timeout(_timeout));
+          .timeout(timeout ?? _timeout));
     } on TimeoutException {
       _throwTimeout();
     }
@@ -168,17 +174,22 @@ class ApiClient {
     }
   }
 
-  /// Multipart upload (PDF import, question images).
+  /// Multipart upload (PDF import, question images, syllabus). Extra text
+  /// fields (e.g. `subject`) ride alongside the file in the same request.
   Future<dynamic> upload(String path,
-      {required List<int> bytes, required String filename}) async {
+      {required List<int> bytes,
+      required String filename,
+      Map<String, String>? fields,
+      Duration? timeout}) async {
+    final t = timeout ?? _uploadTimeout;
     try {
       final req = http.MultipartRequest('POST', Uri.parse('$baseUrl$path'))
         ..headers['authorization'] = 'Bearer $_token'
         ..files.add(
             http.MultipartFile.fromBytes('file', bytes, filename: filename));
-      final streamed = await req.send().timeout(_uploadTimeout);
-      return _decode(
-          await http.Response.fromStream(streamed).timeout(_uploadTimeout));
+      if (fields != null) req.fields.addAll(fields);
+      final streamed = await req.send().timeout(t);
+      return _decode(await http.Response.fromStream(streamed).timeout(t));
     } on TimeoutException {
       _throwTimeout();
     }
