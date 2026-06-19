@@ -10,7 +10,11 @@ import 'student_shell.dart';
 /// (chapters) — e.g. to revise exactly what was taught that day, or to focus a
 /// quick exam on a topic they're weak in.
 class PracticeGeneratorScreen extends StatefulWidget {
-  const PracticeGeneratorScreen({super.key});
+  const PracticeGeneratorScreen({super.key, this.initialSubject});
+
+  /// Subject chosen on the hub; if it has questions it's pre-selected here.
+  final String? initialSubject;
+
   @override
   State<PracticeGeneratorScreen> createState() => _PracticeGeneratorScreenState();
 }
@@ -57,6 +61,7 @@ class _PracticeGeneratorScreenState extends State<PracticeGeneratorScreen> {
       setState(() {
         _subjects = rows.cast<Map<String, dynamic>>();
         _loading = false;
+        _preselectInitial();
       });
     } catch (e) {
       if (!mounted) return;
@@ -64,6 +69,27 @@ class _PracticeGeneratorScreenState extends State<PracticeGeneratorScreen> {
         _error = e.toString();
         _loading = false;
       });
+    }
+  }
+
+  /// Pre-select the subject the student chose on the hub (if it has questions),
+  /// so the builder opens already focused on their choice instead of blank.
+  /// Call inside setState. Matches case-insensitively and treats
+  /// Math/Maths/Mathematics as the same subject.
+  void _preselectInitial() {
+    final want = widget.initialSubject;
+    if (want == null || want.trim().isEmpty || _counts.isNotEmpty) return;
+    String norm(String s) {
+      s = s.trim().toLowerCase();
+      return s.startsWith('math') ? 'math' : s;
+    }
+    for (final s in _subjects) {
+      final subj = s['subject'] as String? ?? '';
+      final avail = (s['available'] as num?)?.toInt() ?? 0;
+      if (avail > 0 && norm(subj) == norm(want)) {
+        _counts[subj] = avail < 10 ? avail : 10; // sensible default count
+        break;
+      }
     }
   }
 

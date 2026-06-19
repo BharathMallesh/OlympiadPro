@@ -107,7 +107,12 @@ final router = GoRouter(
     GoRoute(path: '/student/interests', pageBuilder: (c, s) => _page(const AcademicInterestsScreen(), s)),
     GoRoute(path: '/student/join-class', pageBuilder: (c, s) => _page(const JoinClassScreen(), s)),
     GoRoute(path: '/student/hub', pageBuilder: (c, s) => _page(const StudentHubScreen(), s)),
-    GoRoute(path: '/student/practice-generator', pageBuilder: (c, s) => _page(const PracticeGeneratorScreen(), s)),
+    GoRoute(
+        path: '/student/practice-generator',
+        pageBuilder: (c, s) => _page(
+            PracticeGeneratorScreen(
+                initialSubject: s.uri.queryParameters['subject']),
+            s)),
     GoRoute(
         path: '/student/exam',
         pageBuilder: (c, s) => _page(

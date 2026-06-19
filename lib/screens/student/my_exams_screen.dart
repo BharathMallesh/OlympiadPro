@@ -16,6 +16,7 @@ class MyExamsScreen extends StatefulWidget {
 class _MyExamsScreenState extends State<MyExamsScreen> {
   int _tab = 0;
   List<dynamic> _exams = [];
+  List<dynamic> _practice = []; // AI practice papers (past sessions)
   bool _loading = true;
   String? _error;
 
@@ -31,10 +32,14 @@ class _MyExamsScreenState extends State<MyExamsScreen> {
       _error = null;
     });
     try {
-      final exams = await Repo.studentExams();
+      final results = await Future.wait([
+        Repo.studentExams(),
+        Repo.practiceHistory(),
+      ]);
       if (!mounted) return;
       setState(() {
-        _exams = exams;
+        _exams = results[0];
+        _practice = results[1];
         _loading = false;
       });
     } catch (e) {
@@ -77,7 +82,11 @@ class _MyExamsScreenState extends State<MyExamsScreen> {
               border: Border.all(color: AppColors.outline),
             ),
             child: Row(children: [
-              for (final (i, label) in const [(0, 'Upcoming'), (1, 'Past')])
+              for (final (i, label) in const [
+                (0, 'Upcoming'),
+                (1, 'Past'),
+                (2, 'AI Practice')
+              ])
                 Expanded(
                   child: InkWell(
                     onTap: () => setState(() => _tab = i),
@@ -92,7 +101,8 @@ class _MyExamsScreenState extends State<MyExamsScreen> {
                         borderRadius: BorderRadius.circular(AppRadius.sm),
                       ),
                       child: Text(label,
-                          style: AppTheme.mono(12, FontWeight.w600,
+                          textAlign: TextAlign.center,
+                          style: AppTheme.mono(11, FontWeight.w600,
                               color:
                                   _tab == i ? AppColors.teal : AppColors.muted)),
                     ),
@@ -117,22 +127,42 @@ class _MyExamsScreenState extends State<MyExamsScreen> {
                       child: ListView(
                         physics: const AlwaysScrollableScrollPhysics(),
                         padding: const EdgeInsets.all(AppSpacing.md),
-                        children: [
-                          if ((_tab == 0 ? upcoming : past).isEmpty)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 60),
-                              child: Center(
-                                child: Text(
-                                    _tab == 0
-                                        ? 'No upcoming exams. Pull to refresh.'
-                                        : 'No completed exams yet.',
-                                    style:
-                                        Theme.of(context).textTheme.bodyMedium),
-                              ),
-                            ),
-                          for (final e in (_tab == 0 ? upcoming : past))
-                            _ExamTile(exam: e),
-                        ],
+                        children: _tab == 2
+                            ? [
+                                if (_practice.isEmpty)
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 60),
+                                    child: Center(
+                                      child: Text(
+                                          'No AI practice papers yet. Generate '
+                                          'one from Home to revisit it here.',
+                                          textAlign: TextAlign.center,
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .bodyMedium),
+                                    ),
+                                  ),
+                                for (final p in _practice)
+                                  _PracticeTile(
+                                      session: p as Map<String, dynamic>),
+                              ]
+                            : [
+                                if ((_tab == 0 ? upcoming : past).isEmpty)
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 60),
+                                    child: Center(
+                                      child: Text(
+                                          _tab == 0
+                                              ? 'No upcoming exams. Pull to refresh.'
+                                              : 'No completed exams yet.',
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .bodyMedium),
+                                    ),
+                                  ),
+                                for (final e in (_tab == 0 ? upcoming : past))
+                                  _ExamTile(exam: e),
+                              ],
                       ),
                     ),
         ),
@@ -203,6 +233,69 @@ class _ExamTile extends StatelessWidget {
               Align(alignment: Alignment.centerRight, child: action),
             ],
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// A past AI practice paper. Tapping reopens it for review (questions, the
+/// student's answers, and the correct ones) so they can revise.
+class _PracticeTile extends StatelessWidget {
+  const _PracticeTile({required this.session});
+  final Map<String, dynamic> session;
+
+  static const _months = [
+    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+  ];
+
+  String _date(String? iso) {
+    final t = DateTime.tryParse(iso ?? '')?.toLocal();
+    if (t == null) return '';
+    return '${t.day} ${_months[t.month - 1]} ${t.year}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final id = session['id'] as String;
+    final subjects = (session['subjects'] as String?)?.trim();
+    final title = (subjects == null || subjects.isEmpty)
+        ? 'Practice paper'
+        : '$subjects practice';
+    final total = (session['total'] as num?)?.toInt() ?? 0;
+    final correct = (session['correct'] as num?)?.toInt() ?? 0;
+    final pct = (session['score_pct'] as num?)?.round() ?? 0;
+    final color = pct >= 70
+        ? AppColors.success
+        : pct >= 40
+            ? AppColors.secondary
+            : AppColors.error;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: InkWell(
+        onTap: () => context.push('/student/practice-review?session=$id'),
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        child: AppCard(
+          accentTop: color,
+          padding: const EdgeInsets.all(16),
+          child: Row(children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title, style: Theme.of(context).textTheme.titleMedium),
+                  const SizedBox(height: 4),
+                  Text('$correct / $total correct · ${_date(session['created_at'] as String?)}',
+                      style: Theme.of(context).textTheme.bodySmall),
+                ],
+              ),
+            ),
+            StatusChip('$pct%', color: color),
+            const SizedBox(width: 6),
+            const Icon(Icons.chevron_right, color: AppColors.muted, size: 20),
+          ]),
         ),
       ),
     );

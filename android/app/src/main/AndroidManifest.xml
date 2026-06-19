@@ -1,6 +1,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Required for all network calls (login, API). Without this in the MAIN
+         manifest, release builds have no internet access even though debug does. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
     <application
-        android:label="OlympiadPro"
+        android:label="Vidyora"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

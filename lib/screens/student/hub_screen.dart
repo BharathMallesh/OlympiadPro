@@ -14,8 +14,9 @@ class StudentHubScreen extends StatefulWidget {
 }
 
 class _StudentHubScreenState extends State<StudentHubScreen> {
-  String _subject = 'Math';
+  String? _subject; // selected subject; set from real available subjects
   String _difficulty = 'Hard';
+  List<Map<String, dynamic>> _subjects = const []; // real subjects in the bank
   Map<String, dynamic>? _nextExam;
   bool _loadingExam = true;
   List<dynamic> _activity = [];
@@ -26,6 +27,20 @@ class _StudentHubScreenState extends State<StudentHubScreen> {
     super.initState();
     _loadNext();
     _loadActivity();
+    _loadSubjects();
+  }
+
+  Future<void> _loadSubjects() async {
+    try {
+      final rows = await Repo.practiceSubjects();
+      if (!mounted) return;
+      setState(() {
+        _subjects = rows.cast<Map<String, dynamic>>();
+        // Default the selection to the first subject that actually has questions.
+        _subject ??=
+            _subjects.isNotEmpty ? _subjects.first['subject'] as String? : null;
+      });
+    } catch (_) {/* leave subjects empty; the generator shows an empty state */}
   }
 
   Future<void> _loadNext() async {
@@ -230,11 +245,18 @@ class _StudentHubScreenState extends State<StudentHubScreen> {
                     Text('SUBJECT:', style: AppTheme.mono(10, FontWeight.w600)),
                     const SizedBox(width: 10),
                     Expanded(
-                      child: Wrap(spacing: 8, children: [
-                        for (final s in ['Math', 'Physics', 'Bio'])
-                          _MiniChip(s, _subject == s,
-                              () => setState(() => _subject = s)),
-                      ]),
+                      child: _subjects.isEmpty
+                          ? Text('No subjects yet',
+                              style: AppTheme.mono(10, FontWeight.w500,
+                                  color: AppColors.muted))
+                          : Wrap(spacing: 8, runSpacing: 8, children: [
+                              for (final s in _subjects)
+                                _MiniChip(
+                                    s['subject'] as String,
+                                    _subject == s['subject'],
+                                    () => setState(() =>
+                                        _subject = s['subject'] as String)),
+                            ]),
                     ),
                   ]),
                   const SizedBox(height: 12),
@@ -254,7 +276,11 @@ class _StudentHubScreenState extends State<StudentHubScreen> {
                   AppButton('Generate Practice Set',
                       expand: true,
                       onPressed: () async {
-                        await context.push('/student/practice-generator');
+                        // Carry the chosen subject so the next screen pre-selects it.
+                        final q = _subject != null
+                            ? '?subject=${Uri.encodeComponent(_subject!)}'
+                            : '';
+                        await context.push('/student/practice-generator$q');
                         // Refresh recent activity when returning from a session.
                         _loadActivity();
                       }),
