@@ -30,7 +30,10 @@ class _JoinClassScreenState extends State<JoinClassScreen> {
           leading: IconButton(
               tooltip: 'Back',
               icon: const Icon(Icons.arrow_back),
-              onPressed: () => context.go('/student/interests')),
+              // Reached from the hub via push -> pop back to the hub. During
+              // onboarding (reached via go) there's nothing to pop, so fall
+              // back to the previous setup step.
+              onPressed: () => popOrGo(context, '/student/interests')),
           title: Text('Vidyora',
               style: Theme.of(context).textTheme.titleLarge
                   ?.copyWith(color: AppColors.primary, fontWeight: FontWeight.w700)),
