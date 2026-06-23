@@ -48,13 +48,15 @@ class _UploadPaperScreenState extends State<UploadPaperScreen> {
   Widget build(BuildContext context) {
     final wide = isWide(context);
     return PopRedirect(
-      fallbackRoute: '/wizard/scheduling',
+      fallbackRoute: '/wizard/audience',
       child: Scaffold(
       backgroundColor: AppColors.scaffold,
       appBar: AppBar(
         backgroundColor: AppColors.background,
         leading: IconButton(
-            icon: const Icon(Icons.menu), onPressed: () => context.go('/dashboard')),
+            tooltip: 'Back',
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () => context.go('/wizard/audience')),
         title: Text('Vidyora',
             style: Theme.of(context).textTheme.titleLarge
                 ?.copyWith(color: AppColors.primary, fontWeight: FontWeight.w700)),

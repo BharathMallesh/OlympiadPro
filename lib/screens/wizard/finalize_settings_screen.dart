@@ -52,11 +52,13 @@ class FinalizeSettingsScreen extends StatelessWidget {
                                 children: [
                                   // Summary block
                                   Text(examDraft.title.isEmpty
-                                      ? 'Advanced Physics - JEE Mock 1'
+                                      ? 'Untitled exam'
                                       : examDraft.title,
                                       style: Theme.of(context).textTheme.titleLarge),
                                   const SizedBox(height: 4),
-                                  Text('${examDraft.board} · ${examDraft.questions} questions · ${examDraft.marks} marks',
+                                  Text('${examDraft.board} · '
+                                      '${questionStore.questions.length} questions · '
+                                      '${questionStore.questions.fold<int>(0, (a, q) => a + q.marks)} marks',
                                       style: Theme.of(context).textTheme.bodyMedium),
                                   const SizedBox(height: 20),
                                   const Divider(),
@@ -71,38 +73,25 @@ class FinalizeSettingsScreen extends StatelessWidget {
                                       crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
                                         Row(children: [
-                                          const Icon(Icons.calendar_month_outlined,
+                                          const Icon(Icons.groups_outlined,
                                               size: 16, color: AppColors.primary),
                                           const SizedBox(width: 8),
-                                          Text('SCHEDULING',
+                                          Text('TARGETING',
                                               style: AppTheme.mono(11, FontWeight.w600,
                                                   color: AppColors.primary, ls: 1)),
                                         ]),
-                                        const SizedBox(height: 16),
-                                        Row(children: [
-                                          Expanded(
-                                            child: Column(
-                                              crossAxisAlignment: CrossAxisAlignment.start,
-                                              children: const [
-                                                FieldLabel('Start Date'),
-                                                _MiniField('25/11/2024', Icons.calendar_today_outlined),
-                                              ],
-                                            ),
-                                          ),
-                                          const SizedBox(width: 14),
-                                          Expanded(
-                                            child: Column(
-                                              crossAxisAlignment: CrossAxisAlignment.start,
-                                              children: const [
-                                                FieldLabel('Start Time (EST)'),
-                                                _MiniField('09:00 AM', Icons.schedule),
-                                              ],
-                                            ),
-                                          ),
-                                        ]),
                                         const SizedBox(height: 12),
                                         Text(
-                                            'Students will see a countdown timer 24 hours prior to the start time.',
+                                            examDraft.targetClasses.isEmpty
+                                                ? 'No class selected.'
+                                                : '${examDraft.targetClasses.join(", ")} · '
+                                                    '${examDraft.reach} student'
+                                                    '${examDraft.reach == 1 ? "" : "s"}',
+                                            style: Theme.of(context).textTheme.bodyMedium),
+                                        const SizedBox(height: 8),
+                                        Text(
+                                            'Published immediately to the selected '
+                                            'class’s students.',
                                             style: Theme.of(context).textTheme.bodySmall
                                                 ?.copyWith(fontStyle: FontStyle.italic)),
                                       ],
@@ -165,11 +154,12 @@ class FinalizeSettingsScreen extends StatelessWidget {
               top: false,
               child: LayoutBuilder(builder: (context, c) {
                 final tight = c.maxWidth < 720;
-                final back = AppButton('Back to Questions',
+                final back = AppButton(tight ? 'Back' : 'Back to Questions',
                     kind: AppBtnKind.ghost,
                     icon: Icons.chevron_left,
                     onPressed: () => context.go('/wizard/ai-review'));
-                final draft = AppButton('Save as Draft', kind: AppBtnKind.ghost,
+                final draft = AppButton(tight ? 'Draft' : 'Save as Draft',
+                    kind: AppBtnKind.ghost,
                     icon: Icons.save_outlined,
                     onPressed: () => context.go('/dashboard'));
                 final publish = AppButton('Review & Publish',
@@ -201,21 +191,3 @@ class FinalizeSettingsScreen extends StatelessWidget {
   }
 }
 
-class _MiniField extends StatelessWidget {
-  const _MiniField(this.value, this.icon);
-  final String value;
-  final IconData icon;
-  @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-        decoration: BoxDecoration(
-          color: AppColors.scaffold,
-          borderRadius: BorderRadius.circular(AppRadius.sm),
-          border: Border.all(color: AppColors.outlineStrong),
-        ),
-        child: Row(children: [
-          Expanded(child: Text(value, style: const TextStyle(color: AppColors.onSurface))),
-          Icon(icon, size: 15, color: AppColors.muted),
-        ]),
-      );
-}

@@ -130,6 +130,12 @@ class WizardScaffold extends StatelessWidget {
   }
 }
 
+/// Wrap a wizard card so it flexes in the wide two-column layout but sizes to
+/// its content when stacked on mobile. A bare `Expanded` with flex 0 inside the
+/// wizard's vertical scroll view collapses the card to zero height.
+Widget wizardFlex(bool wide, int flex, Widget child) =>
+    wide ? Expanded(flex: flex, child: child) : child;
+
 class _BottomBar extends StatelessWidget {
   const _BottomBar({
     this.backRoute,

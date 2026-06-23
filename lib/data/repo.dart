@@ -144,13 +144,14 @@ class Repo {
   /// (Gemini), so allow plenty of time.
   static Future<Map<String, dynamic>> uploadSyllabus(
           List<int> bytes, String filename, String subject,
-          {String? classId}) async =>
+          {String? classId, List<String> boards = const []}) async =>
       (await api.upload('/v1/syllabi',
           bytes: bytes,
           filename: filename,
           fields: {
             'subject': subject,
             if (classId != null && classId.isNotEmpty) 'class_id': classId,
+            if (boards.isNotEmpty) 'boards': boards.join(','),
           },
           timeout: const Duration(seconds: 180))) as Map<String, dynamic>;
 
@@ -355,6 +356,7 @@ class Repo {
     required String password,
     String? teacherCode,
     String? classId,
+    List<String> targetBoards = const [],
   }) async {
     final r = await api.post('/v1/student/register', {
       'full_name': fullName,
@@ -363,10 +365,24 @@ class Repo {
       if (teacherCode != null && teacherCode.trim().isNotEmpty)
         'teacher_code': teacherCode.trim(),
       if (classId != null && classId.isNotEmpty) 'class_id': classId,
+      if (targetBoards.isNotEmpty) 'target_boards': targetBoards,
     });
     await api.setSession(r['token'] as String, 'student');
     _captureStudentIdentity(r);
     return r as Map<String, dynamic>;
+  }
+
+  /// The exam boards the student is preparing for (JEE / NEET / CET …).
+  static Future<List<String>> studentBoards() async {
+    final r = await api.get('/v1/student/boards') as Map<String, dynamic>;
+    return ((r['target_boards'] as List?) ?? const []).cast<String>();
+  }
+
+  /// Replace the student's target boards; returns the saved (normalised) list.
+  static Future<List<String>> setStudentBoards(List<String> boards) async {
+    final r = await api.put('/v1/student/boards', {'target_boards': boards})
+        as Map<String, dynamic>;
+    return ((r['target_boards'] as List?) ?? const []).cast<String>();
   }
 
   /// Subtitle under the student's name shows their class (e.g. "2 PUC-KCET"),

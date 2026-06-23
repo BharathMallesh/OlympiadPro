@@ -5,6 +5,7 @@ import '../../app/theme.dart';
 import '../../data/repo.dart';
 import '../../widgets/app_shell.dart';
 import '../../widgets/common.dart';
+import '../../widgets/math_text.dart';
 
 /// Validator / teacher workspace: upload a syllabus, generate questions from
 /// its chapters with Gemini, then review and approve them into the bank. This
@@ -27,8 +28,9 @@ class _GenerateScreenState extends State<GenerateScreen> {
   List<dynamic> _bankNeedsKey = []; // bank MCQs missing an answer key
   List<dynamic> _classes = []; // institution's classes, for tagging on upload
 
-  // Inline generation state for the currently-expanded syllabus.
-  String? _expandedId;
+  // Generation state: which class is picked, and which of its chapters are
+  // selected. A class can hold several subject PDFs; chapters are shown flat.
+  String? _selClass; // class group key: a class_id, or '__none__' (unassigned)
   final Set<String> _selChapters = {};
   int _mcq = 5, _short = 0, _long = 0;
   bool _busy = false;
@@ -92,13 +94,16 @@ class _GenerateScreenState extends State<GenerateScreen> {
     if (_busy) return;
     final ctrl = TextEditingController();
     String? classId;
-    final result = await showDialog<(String, String?)>(
+    final boards = <String>{};
+    const boardOptions = ['JEE', 'NEET', 'CET', 'CBSE', 'State Board'];
+    final result = await showDialog<(String, String?, List<String>)>(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setLocal) => AlertDialog(
           backgroundColor: AppColors.surface,
           title: const Text('New syllabus'),
-          content: Column(
+          content: SingleChildScrollView(
+            child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -143,7 +148,42 @@ class _GenerateScreenState extends State<GenerateScreen> {
                   );
                 }).toList(),
               ),
+              const SizedBox(height: 16),
+              const Text('Which exam board(s)? (optional — scopes student '
+                  'practice to those boards)'),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: boardOptions.map((b) {
+                  final sel = boards.contains(b);
+                  return InkWell(
+                    onTap: () => setLocal(
+                        () => sel ? boards.remove(b) : boards.add(b)),
+                    borderRadius: BorderRadius.circular(AppRadius.pill),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: sel ? AppColors.teal : AppColors.surfaceContainer,
+                        borderRadius: BorderRadius.circular(AppRadius.pill),
+                        border: Border.all(
+                            color:
+                                sel ? AppColors.teal : AppColors.outlineStrong),
+                      ),
+                      child: Text(b,
+                          style: TextStyle(
+                              color: sel
+                                  ? AppColors.onPrimary
+                                  : AppColors.onSurface,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 13)),
+                    ),
+                  );
+                }).toList(),
+              ),
             ],
+          ),
           ),
           actions: [
             TextButton(
@@ -153,7 +193,7 @@ class _GenerateScreenState extends State<GenerateScreen> {
                 onPressed: () {
                   final s = ctrl.text.trim();
                   if (s.isEmpty) return;
-                  Navigator.pop(ctx, (s, classId));
+                  Navigator.pop(ctx, (s, classId, boards.toList()));
                 },
                 child: const Text('Choose PDF')),
           ],
@@ -163,6 +203,7 @@ class _GenerateScreenState extends State<GenerateScreen> {
     if (result == null) return;
     final subject = result.$1;
     final classId2 = result.$2;
+    final boards2 = result.$3;
 
     final picked = await FilePicker.platform.pickFiles(
       type: FileType.custom,
@@ -183,7 +224,7 @@ class _GenerateScreenState extends State<GenerateScreen> {
         _toast(
             'Uploading "${file.name}" (${done + 1}/${files.length}) — extracting chapters…');
         await Repo.uploadSyllabus(file.bytes!, file.name, subject,
-            classId: classId2);
+            classId: classId2, boards: boards2);
         done++;
       }
       await _load();
@@ -198,7 +239,7 @@ class _GenerateScreenState extends State<GenerateScreen> {
     }
   }
 
-  Future<void> _generate(Map<String, dynamic> syl) async {
+  Future<void> _generateForClass() async {
     if (_busy) return;
     if (_selChapters.isEmpty) {
       _toast('Select at least one chapter', error: true);
@@ -208,29 +249,116 @@ class _GenerateScreenState extends State<GenerateScreen> {
       _toast('Choose how many questions to generate', error: true);
       return;
     }
+
+    // The backend generates per syllabus (PDF), but a class can hold several
+    // subject PDFs. Group the selected chapters by the syllabus they belong to,
+    // preserving a stable order, then call generate once per syllabus.
+    final group = _groupFor(_selClass);
+    final order = <String>[]; // syllabus ids, in display order
+    final bySyllabus = <String, List<String>>{};
+    for (final syl in group?.syllabi ?? const []) {
+      final sid = syl['id'] as String;
+      for (final c in (syl['chapters'] as List? ?? const [])) {
+        final cid = (c as Map)['id'] as String;
+        if (_selChapters.contains(cid)) {
+          bySyllabus.putIfAbsent(sid, () {
+            order.add(sid);
+            return [];
+          }).add(cid);
+        }
+      }
+    }
+    if (bySyllabus.isEmpty) {
+      _toast('Select at least one chapter', error: true);
+      return;
+    }
+
+    // Spread each requested total evenly across the selected chapters, then sum
+    // per syllabus — so counts split sensibly when chapters span subject PDFs.
+    final counts = order.map((sid) => bySyllabus[sid]!.length).toList();
+    final mcqEach = _splitByChapter(_mcq, counts);
+    final shortEach = _splitByChapter(_short, counts);
+    final longEach = _splitByChapter(_long, counts);
+
     setState(() => _busy = true);
     _toast('Generating questions — this can take a moment…');
+    var total = 0;
     try {
-      final r = await Repo.generateFromSyllabus(
-        syl['id'] as String,
-        chapterIds: _selChapters.toList(),
-        mcq: _mcq,
-        short: _short,
-        long: _long,
-      );
-      final n = r['generated'] ?? 0;
+      for (var i = 0; i < order.length; i++) {
+        if (mcqEach[i] + shortEach[i] + longEach[i] == 0) continue;
+        final r = await Repo.generateFromSyllabus(
+          order[i],
+          chapterIds: bySyllabus[order[i]]!,
+          mcq: mcqEach[i],
+          short: shortEach[i],
+          long: longEach[i],
+        );
+        total += (r['generated'] as num?)?.toInt() ?? 0;
+      }
       await _load();
       setState(() {
-        _expandedId = null;
         _selChapters.clear();
         _tab = 1; // jump to review
       });
-      _toast('$n questions generated — review & approve them now');
+      _toast('$total questions generated — review & approve them now');
     } catch (e) {
       _toast('Generation failed: $e', error: true);
     } finally {
       if (mounted) setState(() => _busy = false);
     }
+  }
+
+  /// Distribute `total` questions evenly across every selected chapter (one
+  /// share each, remainder to the earliest), then fold the shares into
+  /// per-syllabus subtotals. `counts[i]` = selected chapters in syllabus i.
+  List<int> _splitByChapter(int total, List<int> counts) {
+    final k = counts.fold<int>(0, (a, b) => a + b);
+    if (k == 0) return List<int>.filled(counts.length, 0);
+    final base = total ~/ k;
+    var rem = total % k;
+    final out = List<int>.filled(counts.length, 0);
+    for (var i = 0; i < counts.length; i++) {
+      for (var j = 0; j < counts[i]; j++) {
+        out[i] += base + (rem > 0 ? 1 : 0);
+        if (rem > 0) rem--;
+      }
+    }
+    return out;
+  }
+
+  /// Group uploaded syllabi by class, so the validator picks a class first and
+  /// then sees all of that class's chapters flat — regardless of how many
+  /// subject PDFs were uploaded under it. Syllabi with no class (the global
+  /// self-study pool) fall under "All students".
+  List<_ClassGroup> _classGroups() {
+    final map = <String, _ClassGroup>{};
+    for (final s in _syllabi) {
+      final syl = s as Map<String, dynamic>;
+      final cid = syl['class_id'] as String?;
+      final key = cid ?? '__none__';
+      final name = (syl['class_name'] as String?)?.trim();
+      map
+          .putIfAbsent(
+              key,
+              () => _ClassGroup(
+                  key: key,
+                  name: (name == null || name.isEmpty) ? 'All students' : name))
+          .syllabi
+          .add(syl);
+    }
+    return map.values.toList()
+      ..sort((a, b) {
+        if (a.key == '__none__') return 1;
+        if (b.key == '__none__') return -1;
+        return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+      });
+  }
+
+  _ClassGroup? _groupFor(String? key) {
+    for (final g in _classGroups()) {
+      if (g.key == key) return g;
+    }
+    return null;
   }
 
   Future<void> _approve(Map<String, dynamic> q) async {
@@ -367,6 +495,14 @@ class _GenerateScreenState extends State<GenerateScreen> {
   // ---- Generate tab ----
 
   List<Widget> _generateTab() {
+    final groups = _classGroups();
+    // Default to the first class with material; recover if the previously
+    // selected class was deleted or its syllabi removed.
+    if (groups.isNotEmpty && !groups.any((g) => g.key == _selClass)) {
+      _selClass = groups.first.key;
+    }
+    final group = _groupFor(_selClass);
+
     return [
       AppCard(
         color: AppColors.surfaceContainer,
@@ -376,8 +512,8 @@ class _GenerateScreenState extends State<GenerateScreen> {
             const SectionTitle('Upload a syllabus', icon: Icons.upload_file),
             const SizedBox(height: 8),
             Text(
-                'Add a subject syllabus PDF. We extract its chapters so you can '
-                'generate questions from any chapter.',
+                'Add a subject syllabus PDF for a class. We extract its chapters '
+                'so you can generate questions from any chapter.',
                 style: Theme.of(context).textTheme.bodyMedium),
             const SizedBox(height: 14),
             AppButton(_busy ? 'Working…' : 'Add syllabus PDF',
@@ -387,108 +523,137 @@ class _GenerateScreenState extends State<GenerateScreen> {
         ),
       ),
       const SizedBox(height: 20),
-      Text('YOUR SYLLABI',
-          style: AppTheme.mono(11, FontWeight.w600,
-              color: AppColors.muted, ls: 1.2)),
-      const SizedBox(height: 10),
       if (_syllabi.isEmpty)
         AppCard(
           child: Text('No syllabi yet — upload one above to get started.',
               style: Theme.of(context).textTheme.bodyMedium),
         )
-      else
-        ..._syllabi.map((s) => _syllabusCard(s as Map<String, dynamic>)),
+      else ...[
+        Text('CHOOSE A CLASS',
+            style: AppTheme.mono(11, FontWeight.w600,
+                color: AppColors.muted, ls: 1.2)),
+        const SizedBox(height: 10),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: groups.map((g) {
+            final sel = g.key == _selClass;
+            return InkWell(
+              onTap: () => setState(() {
+                _selClass = g.key;
+                _selChapters.clear();
+              }),
+              borderRadius: BorderRadius.circular(AppRadius.pill),
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+                decoration: BoxDecoration(
+                  color: sel ? AppColors.primary : AppColors.surfaceContainer,
+                  borderRadius: BorderRadius.circular(AppRadius.pill),
+                  border: Border.all(
+                      color:
+                          sel ? AppColors.primary : AppColors.outlineStrong),
+                ),
+                child: Text('${g.name}  ·  ${g.chapterCount} ch',
+                    style: TextStyle(
+                        color:
+                            sel ? AppColors.onPrimary : AppColors.onSurface,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13)),
+              ),
+            );
+          }).toList(),
+        ),
+        const SizedBox(height: 18),
+        if (group != null) ..._classChapters(group),
+      ],
     ];
   }
 
-  Widget _syllabusCard(Map<String, dynamic> syl) {
-    final id = syl['id'] as String;
-    final chapters = (syl['chapters'] as List?) ?? const [];
-    final expanded = _expandedId == id;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: AppCard(
+  /// All of the selected class's chapters, flat and grouped by subject, with
+  /// the question-count steppers and the generate button.
+  List<Widget> _classChapters(_ClassGroup group) {
+    final rows = <Widget>[];
+    String? lastSubject;
+    var anyChapters = false;
+    for (final syl in group.syllabi) {
+      final subject = syl['subject']?.toString() ?? 'Subject';
+      final chapters = (syl['chapters'] as List?) ?? const [];
+      for (final c in chapters) {
+        anyChapters = true;
+        final ch = c as Map<String, dynamic>;
+        final cid = ch['id'] as String;
+        final on = _selChapters.contains(cid);
+        // Subject subheader whenever the subject changes — keeps the flat list
+        // scannable when a class spans several subject PDFs.
+        if (subject != lastSubject) {
+          lastSubject = subject;
+          rows.add(Padding(
+            padding: const EdgeInsets.only(top: 10, bottom: 2),
+            child: Text(subject.toUpperCase(),
+                style: AppTheme.mono(11, FontWeight.w700,
+                    color: AppColors.primary, ls: 0.8)),
+          ));
+        }
+        rows.add(CheckboxListTile(
+          value: on,
+          dense: true,
+          contentPadding: EdgeInsets.zero,
+          controlAffinity: ListTileControlAffinity.leading,
+          activeColor: AppColors.primary,
+          title: Text('${ch['number']}. ${ch['title']}',
+              style: Theme.of(context).textTheme.bodyMedium),
+          onChanged: (v) => setState(() {
+            if (v == true) {
+              _selChapters.add(cid);
+            } else {
+              _selChapters.remove(cid);
+            }
+          }),
+        ));
+      }
+    }
+
+    return [
+      AppCard(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            InkWell(
-              onTap: () => setState(() {
-                if (expanded) {
-                  _expandedId = null;
-                  _selChapters.clear();
-                } else {
-                  _expandedId = id;
-                  _selChapters.clear();
-                  _mcq = 5;
-                  _short = 0;
-                  _long = 0;
-                }
-              }),
-              child: Row(children: [
-                const Icon(Icons.menu_book_outlined,
-                    color: AppColors.primary, size: 20),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(syl['subject']?.toString() ?? 'Subject',
-                          style: Theme.of(context).textTheme.titleMedium),
-                      Text('${chapters.length} chapters',
-                          style: AppTheme.mono(11, FontWeight.w500,
-                              color: AppColors.muted)),
-                    ],
-                  ),
-                ),
-                Icon(expanded ? Icons.expand_less : Icons.expand_more,
-                    color: AppColors.muted),
-              ]),
-            ),
-            if (expanded) ...[
-              const Divider(height: 24),
+            Row(children: [
               Text('SELECT CHAPTERS',
                   style: AppTheme.mono(11, FontWeight.w600,
                       color: AppColors.muted, ls: 1.2)),
-              const SizedBox(height: 6),
-              ...chapters.map((c) {
-                final ch = c as Map<String, dynamic>;
-                final cid = ch['id'] as String;
-                final on = _selChapters.contains(cid);
-                return CheckboxListTile(
-                  value: on,
-                  dense: true,
-                  contentPadding: EdgeInsets.zero,
-                  controlAffinity: ListTileControlAffinity.leading,
-                  activeColor: AppColors.primary,
-                  title: Text('${ch['number']}. ${ch['title']}',
-                      style: Theme.of(context).textTheme.bodyMedium),
-                  onChanged: (v) => setState(() {
-                    if (v == true) {
-                      _selChapters.add(cid);
-                    } else {
-                      _selChapters.remove(cid);
-                    }
-                  }),
-                );
-              }),
-              const SizedBox(height: 8),
-              Text('HOW MANY (across selected chapters)',
-                  style: AppTheme.mono(11, FontWeight.w600,
-                      color: AppColors.muted, ls: 1.2)),
-              const SizedBox(height: 8),
-              _counter('MCQ', _mcq, 30, (v) => setState(() => _mcq = v)),
-              _counter('Short answer', _short, 15, (v) => setState(() => _short = v)),
-              _counter('Long answer', _long, 10, (v) => setState(() => _long = v)),
-              const SizedBox(height: 14),
-              AppButton(_busy ? 'Generating…' : 'Generate questions',
-                  icon: Icons.auto_awesome,
-                  expand: true,
-                  onPressed: _busy ? null : () => _generate(syl)),
-            ],
+              const Spacer(),
+              Text('${_selChapters.length} selected',
+                  style: AppTheme.mono(11, FontWeight.w500,
+                      color: AppColors.muted)),
+            ]),
+            if (!anyChapters)
+              Padding(
+                padding: const EdgeInsets.only(top: 10),
+                child: Text('No chapters extracted yet for this class.',
+                    style: Theme.of(context).textTheme.bodyMedium),
+              )
+            else
+              ...rows,
+            const Divider(height: 24),
+            Text('HOW MANY (across selected chapters)',
+                style: AppTheme.mono(11, FontWeight.w600,
+                    color: AppColors.muted, ls: 1.2)),
+            const SizedBox(height: 8),
+            _counter('MCQ', _mcq, 30, (v) => setState(() => _mcq = v)),
+            _counter(
+                'Short answer', _short, 15, (v) => setState(() => _short = v)),
+            _counter('Long answer', _long, 10, (v) => setState(() => _long = v)),
+            const SizedBox(height: 14),
+            AppButton(_busy ? 'Generating…' : 'Generate questions',
+                icon: Icons.auto_awesome,
+                expand: true,
+                onPressed: _busy ? null : _generateForClass),
           ],
         ),
       ),
-    );
+    ];
   }
 
   Widget _counter(String label, int value, int max, ValueChanged<int> onChange) {
@@ -583,6 +748,11 @@ class _GenerateScreenState extends State<GenerateScreen> {
                     color: AppColors.secondary, icon: Icons.vpn_key_outlined),
                 const SizedBox(width: 8),
               ],
+              if (q['verified'] == true) ...[
+                StatusChip('AI-checked',
+                    color: AppColors.success, icon: Icons.verified_outlined),
+                const SizedBox(width: 8),
+              ],
               if (q['topic'] != null)
                 Expanded(
                   child: Text(q['topic'].toString(),
@@ -592,12 +762,29 @@ class _GenerateScreenState extends State<GenerateScreen> {
                 ),
             ]),
             const SizedBox(height: 10),
-            Text(q['prompt']?.toString() ?? '',
-                style: const TextStyle(
-                    color: AppColors.onSurface,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                    height: 1.35)),
+            MixedMathText(
+              q['prompt']?.toString() ?? '',
+              fontSize: 15,
+              color: AppColors.onSurface,
+              style: const TextStyle(
+                  color: AppColors.onSurface,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  height: 1.35),
+            ),
+            if (((q['verify_notes'] as String?) ?? '').isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                const Icon(Icons.auto_awesome,
+                    size: 13, color: AppColors.success),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(q['verify_notes'].toString(),
+                      style: AppTheme.mono(10.5, FontWeight.w500,
+                          color: AppColors.success)),
+                ),
+              ]),
+            ],
             if (isMcq) ...[
               const SizedBox(height: 10),
               ...List.generate(options.length, (i) {
@@ -630,7 +817,9 @@ class _GenerateScreenState extends State<GenerateScreen> {
                           color: on ? AppColors.success : AppColors.muted),
                       const SizedBox(width: 10),
                       Expanded(
-                          child: Text(text,
+                          child: MixedMathText(text,
+                              fontSize: 15,
+                              color: AppColors.onSurface,
                               style: Theme.of(context).textTheme.bodyMedium)),
                     ]),
                   ),
@@ -675,4 +864,15 @@ class _GenerateScreenState extends State<GenerateScreen> {
         return 'MCQ';
     }
   }
+}
+
+/// One class's worth of uploaded material: the syllabi (subject PDFs) tagged to
+/// it, used to show the class's chapters flat on the Generate tab.
+class _ClassGroup {
+  _ClassGroup({required this.key, required this.name});
+  final String key; // class_id, or '__none__' for the unassigned/global pool
+  final String name;
+  final List<Map<String, dynamic>> syllabi = [];
+  int get chapterCount => syllabi.fold<int>(
+      0, (a, s) => a + ((s['chapters'] as List?)?.length ?? 0));
 }
