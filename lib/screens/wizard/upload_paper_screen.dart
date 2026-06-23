@@ -31,6 +31,8 @@ class _UploadPaperScreenState extends State<UploadPaperScreen> {
       examDraft
         ..fileName = file.name
         ..importJobId = job['id'] as String
+        // Keep the PDF in memory so the editor can crop figures from its pages.
+        ..paperBytes = file.bytes
         ..touch();
       if (mounted) setState(() {});
     } catch (e) {
