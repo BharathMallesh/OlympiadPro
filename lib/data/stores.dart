@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import '../models/models.dart';
 import 'repo.dart';
@@ -27,6 +28,10 @@ class ExamDraft extends ChangeNotifier {
   List<String> importedQuestionIds = [];
   String? examId; // created on publish
 
+  /// The uploaded question-paper PDF, kept in memory for the rest of the wizard
+  /// so figures can be cropped from its pages in the editor (cleared on reset).
+  Uint8List? paperBytes;
+
   void reset() {
     title = '';
     description = '';
@@ -38,6 +43,7 @@ class ExamDraft extends ChangeNotifier {
     examId = null;
     questions = 0;
     marks = 0;
+    paperBytes = null;
     notifyListeners();
   }
 

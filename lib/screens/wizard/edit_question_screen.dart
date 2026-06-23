@@ -7,6 +7,7 @@ import '../../data/repo.dart';
 import '../../models/models.dart';
 import '../../widgets/common.dart';
 import '../../widgets/math_text.dart';
+import 'pdf_figure_picker.dart';
 
 class EditQuestionScreen extends StatefulWidget {
   const EditQuestionScreen({super.key, required this.index, this.returnTo});
@@ -76,6 +77,16 @@ class _EditQuestionScreenState extends State<EditQuestionScreen> {
     }
   }
 
+  /// Crop a figure out of the uploaded question-paper PDF (option B/D), in-app.
+  Future<void> _addFromPdf() async {
+    final bytes = examDraft.paperBytes;
+    if (bytes == null) return;
+    final result = await Navigator.of(context).push<Uint8List>(
+      MaterialPageRoute(builder: (_) => PdfFigurePicker(pdfBytes: bytes)),
+    );
+    if (result != null && mounted) setState(() => q.images.add(result));
+  }
+
   void _chooseSource() {
     showModalBottomSheet(
       context: context,
@@ -94,6 +105,18 @@ class _EditQuestionScreenState extends State<EditQuestionScreen> {
                   borderRadius: BorderRadius.circular(2)),
             ),
             const SizedBox(height: 8),
+            if (examDraft.paperBytes != null)
+              ListTile(
+                leading: const Icon(Icons.picture_as_pdf_outlined,
+                    color: AppColors.primary),
+                title: const Text('Crop from the uploaded PDF'),
+                subtitle: Text('Pick a page and crop the figure',
+                    style: Theme.of(context).textTheme.bodySmall),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _addFromPdf();
+                },
+              ),
             ListTile(
               leading: const Icon(Icons.photo_camera_outlined, color: AppColors.primary),
               title: const Text('Take Photo'),
@@ -539,6 +562,7 @@ class _TypeDropdown extends StatelessWidget {
         child: DropdownButton<String>(
           value: value,
           isDense: true,
+          isExpanded: true,
           dropdownColor: AppColors.surfaceHigh,
           style: AppTheme.mono(12, FontWeight.w600, color: AppColors.onSurface),
           icon: const Icon(Icons.keyboard_arrow_down, color: AppColors.muted, size: 18),
