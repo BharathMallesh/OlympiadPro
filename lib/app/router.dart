@@ -10,7 +10,6 @@ import '../screens/dashboard/dashboard_screen.dart';
 import '../screens/wizard/exam_details_screen.dart';
 import '../screens/wizard/topic_exam_screen.dart';
 import '../screens/wizard/target_audience_screen.dart';
-import '../screens/wizard/scheduling_screen.dart';
 import '../screens/wizard/upload_paper_screen.dart';
 import '../screens/wizard/ai_review_screen.dart';
 import '../screens/wizard/edit_question_screen.dart';
@@ -67,7 +66,6 @@ final router = GoRouter(
     GoRoute(path: '/wizard/details', pageBuilder: (c, s) => _page(const ExamDetailsScreen(), s)),
     GoRoute(path: '/wizard/topic-exam', pageBuilder: (c, s) => _page(const TopicExamScreen(), s)),
     GoRoute(path: '/wizard/audience', pageBuilder: (c, s) => _page(const TargetAudienceScreen(), s)),
-    GoRoute(path: '/wizard/scheduling', pageBuilder: (c, s) => _page(const SchedulingScreen(), s)),
     GoRoute(path: '/wizard/upload', pageBuilder: (c, s) => _page(const UploadPaperScreen(), s)),
     GoRoute(path: '/wizard/ai-review', pageBuilder: (c, s) => _page(const AiReviewScreen(), s)),
     GoRoute(

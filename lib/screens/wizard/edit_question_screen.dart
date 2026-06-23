@@ -216,13 +216,14 @@ class _EditQuestionScreenState extends State<EditQuestionScreen> {
                     icon: q.status == QStatus.parsed ? Icons.check : Icons.visibility,
                   ),
                   const Spacer(),
-                  Text('Question Type',
-                      style: AppTheme.mono(10, FontWeight.w500)),
-                  const SizedBox(width: 10),
-                  _TypeDropdown(
-                    value: _types.contains(q.type) ? q.type : _types.first,
-                    items: _types,
-                    onChanged: (v) => setState(() => q.type = v),
+                  Text('Type', style: AppTheme.mono(10, FontWeight.w500)),
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: _TypeDropdown(
+                      value: _types.contains(q.type) ? q.type : _types.first,
+                      items: _types,
+                      onChanged: (v) => setState(() => q.type = v),
+                    ),
                   ),
                 ]),
                 const SizedBox(height: 20),
@@ -236,12 +237,13 @@ class _EditQuestionScreenState extends State<EditQuestionScreen> {
                       const SizedBox(height: 14),
                       const FieldLabel('Question Prompt (LaTeX supported)'),
                       AppInput(controller: _prompt, maxLines: 3,
-                          hint: r'e.g. \int_0^\pi \sin(x)\,dx'),
+                          hint: r'e.g. \int_0^\pi \sin(x)\,dx',
+                          onChanged: (_) => setState(() {})),
                       const SizedBox(height: 12),
-                      // Live preview on the "void" panel.
+                      // Live preview.
                       const FieldLabel('Preview'),
                       MixedMathText(_prompt.text.isEmpty ? '-' : _prompt.text,
-                          fontSize: 16),
+                          fontSize: 16, color: AppColors.onSurface),
 
                       // ---- Image attachments: directly below the question ----
                       const SizedBox(height: 20),

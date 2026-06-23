@@ -279,8 +279,13 @@ class SectionTitle extends StatelessWidget {
           Icon(icon, size: 20, color: color ?? AppColors.primary),
           const SizedBox(width: 10),
         ],
-        Text(title,
-            style: Theme.of(context).textTheme.titleLarge),
+        // Flexible so the title ellipsizes instead of overflowing when it shares
+        // a tight row (e.g. next to a toggle); a no-op when there's room.
+        Flexible(
+          child: Text(title,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.titleLarge),
+        ),
       ]);
 }
 

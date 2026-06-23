@@ -208,16 +208,19 @@ class _AiReviewScreenState extends State<AiReviewScreen> {
                 child: SafeArea(
                   top: false,
                   child: Row(children: [
-                    AppButton('Add Question',
+                    AppButton('Add',
                         kind: AppBtnKind.ghost,
                         icon: Icons.add,
                         onPressed: () =>
                             context.push('/wizard/edit-question/new')),
-                    const Spacer(),
-                    AppButton('Save & Continue',
-                        kind: AppBtnKind.secondary,
-                        trailingIcon: Icons.arrow_forward,
-                        onPressed: () => context.go('/wizard/finalize')),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: AppButton('Save & Continue',
+                          kind: AppBtnKind.secondary,
+                          trailingIcon: Icons.arrow_forward,
+                          expand: true,
+                          onPressed: () => context.go('/wizard/finalize')),
+                    ),
                   ]),
                 ),
               ),
@@ -291,7 +294,8 @@ class _QuestionCardState extends State<_QuestionCard> {
                         style: AppTheme.mono(10, FontWeight.w700,
                             color: AppColors.primary, ls: 1)),
                     const SizedBox(height: 6),
-                    MixedMathText(widget.q.prompt, fontSize: 14),
+                    MixedMathText(widget.q.prompt,
+                        fontSize: 14, color: AppColors.onSurface),
                     const SizedBox(height: 16),
                   ],
                   Text('ORIGINAL (FROM PAPER)',
@@ -351,17 +355,19 @@ class _QuestionCardState extends State<_QuestionCard> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    MixedMathText(q.prompt, fontSize: 16),
+                    MixedMathText(q.prompt,
+                        fontSize: 16, color: AppColors.onSurface),
                     const SizedBox(height: 8),
                     Text(q.type, style: Theme.of(context).textTheme.bodySmall),
-                    // Attached images (added in the edit screen)
-                    if (q.images.isNotEmpty) ...[
+                    // Attached images — already-uploaded (urls) + freshly added.
+                    if (q.images.isNotEmpty || q.imageUrls.isNotEmpty) ...[
                       const SizedBox(height: 10),
                       Wrap(
                         spacing: 8,
                         runSpacing: 8,
                         children: [
-                          for (final bytes in q.images) _MiniThumb(bytes),
+                          for (final url in q.imageUrls) _MiniThumb(url: url),
+                          for (final bytes in q.images) _MiniThumb(bytes: bytes),
                         ],
                       ),
                     ],
@@ -374,23 +380,38 @@ class _QuestionCardState extends State<_QuestionCard> {
                   ],
                 ),
               ),
-              if (q.hasGraph) ...[
+              // The paper references a figure/diagram but nothing is attached
+              // yet — offer to add the cropped image (no more hardcoded mock).
+              if (q.hasGraph && q.images.isEmpty && q.imageUrls.isEmpty) ...[
                 const SizedBox(width: 14),
-                Column(children: [
-                  Container(
+                InkWell(
+                  onTap: () => context.push('/wizard/edit-question/$index'),
+                  borderRadius: BorderRadius.circular(AppRadius.md),
+                  child: Container(
                     width: 150,
-                    height: 100,
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 14),
                     decoration: BoxDecoration(
                       color: AppColors.surfaceHigh,
                       borderRadius: BorderRadius.circular(AppRadius.md),
-                      border: Border.all(color: AppColors.outline),
+                      border: Border.all(color: AppColors.outlineStrong),
                     ),
-                    child: const Icon(Icons.show_chart, color: AppColors.primary, size: 32),
+                    child: Column(children: [
+                      const Icon(Icons.add_photo_alternate_outlined,
+                          color: AppColors.primary, size: 28),
+                      const SizedBox(height: 8),
+                      Text('References a figure',
+                          textAlign: TextAlign.center,
+                          style: AppTheme.mono(9.5, FontWeight.w600,
+                              color: AppColors.onSurface)),
+                      const SizedBox(height: 2),
+                      Text('Tap to add the cropped image',
+                          textAlign: TextAlign.center,
+                          style: AppTheme.mono(8.5, FontWeight.w500,
+                              color: AppColors.muted)),
+                    ]),
                   ),
-                  const SizedBox(height: 6),
-                  Text('Cropped Integral Graph',
-                      style: AppTheme.mono(9, FontWeight.w500)),
-                ]),
+                ),
               ],
             ],
           ),
@@ -476,9 +497,16 @@ class _OptionPreview extends StatelessWidget {
                 color: correct ? AppColors.success : AppColors.muted)),
         const SizedBox(width: 10),
         Expanded(
-          child: Text(option.text.isEmpty ? '—' : option.text,
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(fontSize: 14)),
+          child: option.text.isEmpty
+              ? Text('—',
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodyLarge
+                      ?.copyWith(fontSize: 14))
+              : MixedMathText(option.text,
+                  fontSize: 14, color: AppColors.onSurface),
         ),
+        const SizedBox(width: 8),
         if (correct)
           const Icon(Icons.check_circle, size: 16, color: AppColors.success),
       ]),
@@ -487,11 +515,23 @@ class _OptionPreview extends StatelessWidget {
 }
 
 class _MiniThumb extends StatelessWidget {
-  const _MiniThumb(this.bytes);
-  final Uint8List bytes;
+  const _MiniThumb({this.bytes, this.url});
+  final Uint8List? bytes;
+  final String? url;
   @override
   Widget build(BuildContext context) => ClipRRect(
         borderRadius: BorderRadius.circular(AppRadius.sm),
-        child: Image.memory(bytes, width: 80, height: 80, fit: BoxFit.cover),
+        child: bytes != null
+            ? Image.memory(bytes!, width: 80, height: 80, fit: BoxFit.cover)
+            : Image.network(url!,
+                width: 80,
+                height: 80,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => Container(
+                    width: 80,
+                    height: 80,
+                    color: AppColors.surfaceContainer,
+                    child: const Icon(Icons.broken_image,
+                        color: AppColors.muted, size: 18))),
       );
 }
