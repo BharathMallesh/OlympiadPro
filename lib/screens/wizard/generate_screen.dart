@@ -93,10 +93,11 @@ class _GenerateScreenState extends State<GenerateScreen> {
   Future<void> _startUpload() async {
     if (_busy) return;
     final ctrl = TextEditingController();
+    final yearCtrl = TextEditingController();
     String? classId;
     final boards = <String>{};
     const boardOptions = ['JEE', 'NEET', 'CET', 'CBSE', 'State Board'];
-    final result = await showDialog<(String, String?, List<String>)>(
+    final result = await showDialog<(String, String?, List<String>, String?)>(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setLocal) => AlertDialog(
@@ -111,6 +112,13 @@ class _GenerateScreenState extends State<GenerateScreen> {
               const SizedBox(height: 12),
               AppInput(
                   controller: ctrl, hint: 'e.g. Physics', icon: Icons.book_outlined),
+              const SizedBox(height: 12),
+              const Text('Academic year (optional — labels this edition)'),
+              const SizedBox(height: 8),
+              AppInput(
+                  controller: yearCtrl,
+                  hint: 'e.g. 2025-26',
+                  icon: Icons.event_outlined),
               const SizedBox(height: 16),
               Text(_classes.isEmpty
                   ? 'No classes yet — create one first so you can tag this.'
@@ -193,7 +201,8 @@ class _GenerateScreenState extends State<GenerateScreen> {
                 onPressed: () {
                   final s = ctrl.text.trim();
                   if (s.isEmpty) return;
-                  Navigator.pop(ctx, (s, classId, boards.toList()));
+                  Navigator.pop(ctx,
+                      (s, classId, boards.toList(), yearCtrl.text.trim()));
                 },
                 child: const Text('Choose PDF')),
           ],
@@ -204,6 +213,7 @@ class _GenerateScreenState extends State<GenerateScreen> {
     final subject = result.$1;
     final classId2 = result.$2;
     final boards2 = result.$3;
+    final year2 = result.$4;
 
     final picked = await FilePicker.platform.pickFiles(
       type: FileType.custom,
@@ -224,7 +234,7 @@ class _GenerateScreenState extends State<GenerateScreen> {
         _toast(
             'Uploading "${file.name}" (${done + 1}/${files.length}) — extracting chapters…');
         await Repo.uploadSyllabus(file.bytes!, file.name, subject,
-            classId: classId2, boards: boards2);
+            classId: classId2, boards: boards2, academicYear: year2);
         done++;
       }
       await _load();
@@ -334,6 +344,9 @@ class _GenerateScreenState extends State<GenerateScreen> {
     final map = <String, _ClassGroup>{};
     for (final s in _syllabi) {
       final syl = s as Map<String, dynamic>;
+      // Archived (superseded) syllabus editions don't appear in the generate
+      // picker — so questions are only ever generated from the current year's.
+      if (syl['archived'] == true) continue;
       final cid = syl['class_id'] as String?;
       final key = cid ?? '__none__';
       final name = (syl['class_name'] as String?)?.trim();
@@ -361,12 +374,39 @@ class _GenerateScreenState extends State<GenerateScreen> {
     return null;
   }
 
-  Future<void> _approve(Map<String, dynamic> q) async {
+  /// Attach a figure (gallery/file) to a generated question the AI flagged as
+  /// needing one, so it doesn't reach the bank blank.
+  Future<void> _attachFigure(Map<String, dynamic> q) async {
     final id = q['id'] as String;
-    final isMcq = q['qtype'] == 'multiple_choice';
+    final picked = await FilePicker.platform.pickFiles(
+        type: FileType.image, withData: true);
+    final file = picked?.files.firstOrNull;
+    if (file == null || file.bytes == null) return;
     setState(() => _busy = true);
     try {
-      if (isMcq && _correctSel.containsKey(id)) {
+      final updated = await Repo.uploadGeneratedImage(id, file.bytes!, file.name);
+      final i = _pending.indexWhere((x) => x['id'] == id);
+      if (i >= 0) {
+        setState(() => _pending[i] = {
+              ..._pending[i] as Map<String, dynamic>,
+              'image_urls': updated['image_urls'],
+              'needs_figure': updated['needs_figure'],
+            });
+      }
+      _toast('Figure attached');
+    } catch (e) {
+      _toast('$e', error: true);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _approve(Map<String, dynamic> q) async {
+    final id = q['id'] as String;
+    final hasOptions = ((q['options'] as List?) ?? const []).isNotEmpty;
+    setState(() => _busy = true);
+    try {
+      if (hasOptions && _correctSel.containsKey(id)) {
         await Repo.editGenerated(id, correct: _correctSel[id]);
       }
       await Repo.approveGenerated(id);
@@ -578,19 +618,22 @@ class _GenerateScreenState extends State<GenerateScreen> {
     var anyChapters = false;
     for (final syl in group.syllabi) {
       final subject = syl['subject']?.toString() ?? 'Subject';
+      final year = (syl['academic_year'] as String?)?.trim() ?? '';
+      // Edition label keeps two years of the same subject distinguishable.
+      final header = year.isEmpty ? subject : '$subject · $year';
       final chapters = (syl['chapters'] as List?) ?? const [];
       for (final c in chapters) {
         anyChapters = true;
         final ch = c as Map<String, dynamic>;
         final cid = ch['id'] as String;
         final on = _selChapters.contains(cid);
-        // Subject subheader whenever the subject changes — keeps the flat list
-        // scannable when a class spans several subject PDFs.
-        if (subject != lastSubject) {
-          lastSubject = subject;
+        // Subheader whenever the edition changes — keeps the flat list scannable
+        // when a class spans several subject PDFs / years.
+        if (header != lastSubject) {
+          lastSubject = header;
           rows.add(Padding(
             padding: const EdgeInsets.only(top: 10, bottom: 2),
-            child: Text(subject.toUpperCase(),
+            child: Text(header.toUpperCase(),
                 style: AppTheme.mono(11, FontWeight.w700,
                     color: AppColors.primary, ls: 0.8)),
           ));
@@ -725,9 +768,16 @@ class _GenerateScreenState extends State<GenerateScreen> {
 
   Widget _reviewCard(Map<String, dynamic> q) {
     final id = q['id'] as String;
-    final isMcq = q['qtype'] == 'multiple_choice';
     final isBank = q['_source'] == 'bank';
     final options = (q['options'] as List?) ?? const [];
+    // Any option-bearing type (MCQ, assertion-reason, match-columns) gets the
+    // selectable option list + correct-key picker.
+    final isMcq = options.isNotEmpty;
+    final answerText = (q['answer_text'] as String?)?.trim() ?? '';
+    final marking = (q['marking_scheme'] as List?) ?? const [];
+    final solution = (q['solution'] as String?)?.trim() ?? '';
+    final imageUrls = ((q['image_urls'] as List?) ?? const []).cast<String>();
+    final needsFigure = q['needs_figure'] == true && imageUrls.isEmpty;
     // Default selected correct option = whichever the AI flagged, if any.
     final flagged = options.indexWhere(
         (o) => o is Map && o['correct'] == true);
@@ -743,6 +793,16 @@ class _GenerateScreenState extends State<GenerateScreen> {
               StatusChip(_typeLabel(q['qtype']?.toString()),
                   color: AppColors.primary),
               const SizedBox(width: 8),
+              if (q['difficulty'] != null) ...[
+                DifficultyChip((q['difficulty'] as num).toInt()),
+                const SizedBox(width: 8),
+              ],
+              if (needsFigure) ...[
+                StatusChip('Needs figure',
+                    color: AppColors.secondary,
+                    icon: Icons.image_not_supported_outlined),
+                const SizedBox(width: 8),
+              ],
               if (isBank) ...[
                 StatusChip('Needs key',
                     color: AppColors.secondary, icon: Icons.vpn_key_outlined),
@@ -829,6 +889,96 @@ class _GenerateScreenState extends State<GenerateScreen> {
                   style: AppTheme.mono(10.5, FontWeight.w500,
                       color: AppColors.muted)),
             ],
+            // Numeric answer (integer/numeric types) so the validator can verify it.
+            if (!isMcq && answerText.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('Answer:  ',
+                    style: AppTheme.mono(12, FontWeight.w700,
+                        color: AppColors.success)),
+                Expanded(
+                  child: MixedMathText(answerText,
+                      fontSize: 14, color: AppColors.onSurface),
+                ),
+              ]),
+            ],
+            // Step-wise marking scheme for long / case-study answers.
+            if (marking.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              Text('MARKING SCHEME',
+                  style: AppTheme.mono(10, FontWeight.w700,
+                      color: AppColors.muted, ls: 1)),
+              const SizedBox(height: 4),
+              for (final m in marking)
+                if (m is Map)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 3),
+                    child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('+${m['marks'] ?? 0}  ',
+                              style: AppTheme.mono(11, FontWeight.w700,
+                                  color: AppColors.success)),
+                          Expanded(
+                            child: MixedMathText(
+                                (m['step'] ?? '').toString(),
+                                fontSize: 13,
+                                color: AppColors.onSurface),
+                          ),
+                        ]),
+                  ),
+            ],
+            // Worked solution for non-option types (short/long/case-study/integer).
+            if (!isMcq && solution.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              Text('MODEL ANSWER',
+                  style: AppTheme.mono(10, FontWeight.w700,
+                      color: AppColors.muted, ls: 1)),
+              const SizedBox(height: 4),
+              MixedMathText(solution,
+                  fontSize: 13, color: AppColors.onSurface),
+            ],
+            // Attached figures, if any.
+            if (imageUrls.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final url in imageUrls)
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(AppRadius.sm),
+                      child: Image.network(url,
+                          height: 80,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => const SizedBox(
+                              height: 80, width: 80,
+                              child: Icon(Icons.broken_image_outlined,
+                                  color: AppColors.muted))),
+                    ),
+                ],
+              ),
+            ],
+            // Figure attach (this question references a diagram the AI couldn't draw).
+            if (q['needs_figure'] == true || imageUrls.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              if (needsFigure)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: Text(
+                      'This question references a figure — attach it before approving.',
+                      style: AppTheme.mono(10.5, FontWeight.w500,
+                          color: AppColors.secondary)),
+                ),
+              OutlinedButton.icon(
+                onPressed: _busy ? null : () => _attachFigure(q),
+                icon: const Icon(Icons.add_photo_alternate_outlined, size: 16),
+                label: Text(imageUrls.isEmpty ? 'Attach figure' : 'Add another figure'),
+                style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.primary,
+                    side: const BorderSide(color: AppColors.outlineStrong)),
+              ),
+            ],
             const SizedBox(height: 12),
             if (isBank)
               AppButton('Save answer key',
@@ -860,6 +1010,15 @@ class _GenerateScreenState extends State<GenerateScreen> {
         return 'Short';
       case 'long_answer':
         return 'Long';
+      case 'integer':
+      case 'numeric':
+        return 'Numeric';
+      case 'assertion_reason':
+        return 'Assertion–Reason';
+      case 'match_columns':
+        return 'Match';
+      case 'case_study':
+        return 'Case Study';
       default:
         return 'MCQ';
     }

@@ -204,6 +204,23 @@ class StatusChip extends StatelessWidget {
   }
 }
 
+/// Maps a 1–5 difficulty to an Easy/Medium/Hard chip with a traffic-light colour.
+/// Used wherever a question's calibrated difficulty should be visible.
+class DifficultyChip extends StatelessWidget {
+  const DifficultyChip(this.difficulty, {super.key});
+  final int difficulty;
+
+  @override
+  Widget build(BuildContext context) {
+    final (label, color) = switch (difficulty) {
+      <= 2 => ('Easy', AppColors.success),
+      3 => ('Medium', AppColors.secondary),
+      _ => ('Hard', AppColors.error),
+    };
+    return StatusChip(label, color: color);
+  }
+}
+
 /// Small uppercase mono section / field label.
 class FieldLabel extends StatelessWidget {
   const FieldLabel(this.text, {super.key, this.color});

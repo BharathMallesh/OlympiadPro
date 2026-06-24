@@ -144,7 +144,9 @@ class Repo {
   /// (Gemini), so allow plenty of time.
   static Future<Map<String, dynamic>> uploadSyllabus(
           List<int> bytes, String filename, String subject,
-          {String? classId, List<String> boards = const []}) async =>
+          {String? classId,
+          List<String> boards = const [],
+          String? academicYear}) async =>
       (await api.upload('/v1/syllabi',
           bytes: bytes,
           filename: filename,
@@ -152,8 +154,15 @@ class Repo {
             'subject': subject,
             if (classId != null && classId.isNotEmpty) 'class_id': classId,
             if (boards.isNotEmpty) 'boards': boards.join(','),
+            if (academicYear != null && academicYear.isNotEmpty)
+              'academic_year': academicYear,
           },
           timeout: const Duration(seconds: 180))) as Map<String, dynamic>;
+
+  /// Archive (hide from the generate picker) or restore a syllabus version.
+  static Future<void> archiveSyllabus(String id, bool archived) async {
+    await api.post('/v1/syllabi/$id/archive', {'archived': archived});
+  }
 
   /// Generate a mix of questions for the chosen chapters into staging.
   static Future<Map<String, dynamic>> generateFromSyllabus(
@@ -204,6 +213,18 @@ class Repo {
   /// Discard a generated question without adding it to the bank.
   static Future<Map<String, dynamic>> rejectGenerated(String id) async =>
       (await api.post('/v1/chapters/generated/$id/reject'))
+          as Map<String, dynamic>;
+
+  /// Attach a figure to a generated question (for `needs_figure` ones) before
+  /// approval. Returns the updated generated row (with image_urls).
+  static Future<Map<String, dynamic>> uploadGeneratedImage(
+          String id, List<int> bytes, String filename) async =>
+      (await api.upload('/v1/chapters/generated/$id/images',
+          bytes: bytes, filename: filename)) as Map<String, dynamic>;
+
+  static Future<Map<String, dynamic>> removeGeneratedImage(
+          String id, String url) async =>
+      (await api.delete('/v1/chapters/generated/$id/images', {'url': url}))
           as Map<String, dynamic>;
 
   // ---- PDF import ----
@@ -370,6 +391,22 @@ class Repo {
     await api.setSession(r['token'] as String, 'student');
     _captureStudentIdentity(r);
     return r as Map<String, dynamic>;
+  }
+
+  /// Step 1 of password reset: request a one-time code be emailed. The backend
+  /// always returns 200 (it never reveals whether the email is registered).
+  static Future<void> studentForgotPassword(String email) async {
+    await api.post('/v1/student/forgot-password', {'email': email});
+  }
+
+  /// Step 2: submit the emailed code + a new password.
+  static Future<void> studentResetPassword(
+      String email, String code, String newPassword) async {
+    await api.post('/v1/student/reset-password', {
+      'email': email,
+      'code': code,
+      'new_password': newPassword,
+    });
   }
 
   /// The exam boards the student is preparing for (JEE / NEET / CET …).

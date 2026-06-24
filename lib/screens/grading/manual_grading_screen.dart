@@ -254,6 +254,7 @@ class _AnswerCard extends StatelessWidget {
                       question),
                   style: Theme.of(context).textTheme.bodyLarge),
             ),
+            _MarkingGuide(answer: answer),
             const SizedBox(height: 14),
             Row(children: [
               const FieldLabel('Marks Awarded'),
@@ -270,6 +271,81 @@ class _AnswerCard extends StatelessWidget {
               activeColor: AppColors.secondary,
               onChanged: autoGraded ? null : (v) => onAward(qid, v),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// The marking guide for one answer: the expected numeric answer, the step-wise
+/// marking scheme (board-valuation style), and the model answer — so the grader
+/// can allot marks fairly. Collapsed by default to keep the card compact.
+class _MarkingGuide extends StatelessWidget {
+  const _MarkingGuide({required this.answer});
+  final Map<String, dynamic> answer;
+
+  @override
+  Widget build(BuildContext context) {
+    final expected = (answer['answer_text'] as String?)?.trim() ?? '';
+    final scheme = (answer['marking_scheme'] as List?) ?? const [];
+    final solution = (answer['solution'] as String?)?.trim() ?? '';
+    if (expected.isEmpty && scheme.isEmpty && solution.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: Theme(
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          tilePadding: EdgeInsets.zero,
+          childrenPadding: const EdgeInsets.only(bottom: 8),
+          dense: true,
+          leading: const Icon(Icons.checklist_rtl,
+              size: 18, color: AppColors.primary),
+          title: Text('Marking guide',
+              style: AppTheme.mono(12, FontWeight.w600,
+                  color: AppColors.primary, ls: 0.5)),
+          children: [
+            if (expected.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('Expected:  ',
+                      style: AppTheme.mono(12, FontWeight.w700,
+                          color: AppColors.success)),
+                  Expanded(child: MixedMathText(expected, fontSize: 14)),
+                ]),
+              ),
+            if (scheme.isNotEmpty) ...[
+              Text('STEP MARKS',
+                  style: AppTheme.mono(10, FontWeight.w700,
+                      color: AppColors.muted, ls: 1)),
+              const SizedBox(height: 4),
+              for (final m in scheme)
+                if (m is Map)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 3),
+                    child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('+${m['marks'] ?? 0}  ',
+                              style: AppTheme.mono(11, FontWeight.w700,
+                                  color: AppColors.success)),
+                          Expanded(
+                              child: MixedMathText((m['step'] ?? '').toString(),
+                                  fontSize: 13)),
+                        ]),
+                  ),
+              const SizedBox(height: 8),
+            ],
+            if (solution.isNotEmpty) ...[
+              Text('MODEL ANSWER',
+                  style: AppTheme.mono(10, FontWeight.w700,
+                      color: AppColors.muted, ls: 1)),
+              const SizedBox(height: 4),
+              MixedMathText(solution, fontSize: 13),
+            ],
           ],
         ),
       ),

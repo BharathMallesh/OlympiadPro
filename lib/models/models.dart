@@ -50,9 +50,13 @@ class QuestionItem {
   /// Backend `qtype` ↔ display label.
   static const _typeMap = {
     'multiple_choice': 'Multiple Choice',
+    'assertion_reason': 'Assertion & Reason',
+    'match_columns': 'Match the Columns',
     'numeric': 'Numeric',
+    'integer': 'Integer',
     'short_answer': 'Short Answer',
     'long_answer': 'Long Answer',
+    'case_study': 'Case Study',
   };
 
   String get qtype => _typeMap.entries

@@ -108,8 +108,11 @@ class _ExamQuestionScreenState extends State<ExamQuestionScreen> {
     final q = _q;
     if (q == null) return;
     final ans = _answers[q['question_id']];
-    final isMcq = q['qtype'] == 'multiple_choice';
-    if (!isMcq) {
+    // Option-based types use selection cards, not the text field.
+    final hasOptions = (q['options'] as List? ?? []).isNotEmpty ||
+        const {'multiple_choice', 'assertion_reason', 'match_columns'}
+            .contains(q['qtype']);
+    if (!hasOptions) {
       _textCtrl.text = (ans?['value'] ?? ans?['text'] ?? '').toString();
     }
   }
@@ -298,8 +301,13 @@ class _ExamQuestionScreenState extends State<ExamQuestionScreen> {
     final q = _q!;
     final qid = q['question_id'] as String;
     final qtype = q['qtype'] as String? ?? 'short_answer';
-    final isMcq = qtype == 'multiple_choice';
     final options = (q['options'] as List? ?? []);
+    // Option-based types (MCQ, assertion-reason, match-the-columns) all render
+    // as selectable cards; numeric/integer get a number field; the rest a text box.
+    final isMcq = options.isNotEmpty ||
+        const {'multiple_choice', 'assertion_reason', 'match_columns'}
+            .contains(qtype);
+    final isNumeric = qtype == 'numeric' || qtype == 'integer';
     final imageUrls = (q['image_urls'] as List? ?? []).cast<String>();
     final selectedIdx = isMcq
         ? ((_answers[qid]?['selected'] as List?)?.cast<num>() ?? const [])
@@ -365,7 +373,11 @@ class _ExamQuestionScreenState extends State<ExamQuestionScreen> {
                       child: Text(
                           switch (qtype) {
                             'multiple_choice' => 'MULTIPLE CHOICE',
-                            'numeric' => 'NUMERIC ANSWER',
+                            'assertion_reason' => 'ASSERTION & REASON',
+                            'match_columns' => 'MATCH THE COLUMNS',
+                            'numeric' || 'integer' => 'NUMERIC ANSWER',
+                            'long_answer' => 'LONG ANSWER',
+                            'case_study' => 'CASE STUDY',
                             _ => 'SHORT ANSWER',
                           },
                           style: AppTheme.mono(11, FontWeight.w600,
@@ -377,7 +389,8 @@ class _ExamQuestionScreenState extends State<ExamQuestionScreen> {
                       style: AppTheme.mono(10, FontWeight.w500,
                           color: AppColors.success)),
                   const SizedBox(height: 16),
-                  MixedMathText(q['prompt'] as String? ?? '', fontSize: 16),
+                  MixedMathText(q['prompt'] as String? ?? '',
+                      fontSize: 16, color: AppColors.onSurface),
                   for (final url in imageUrls) ...[
                     const SizedBox(height: 14),
                     ClipRRect(
@@ -404,20 +417,18 @@ class _ExamQuestionScreenState extends State<ExamQuestionScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          FieldLabel(qtype == 'numeric'
+                          FieldLabel(isNumeric
                               ? 'Your Numeric Answer'
                               : 'Your Answer'),
                           AppInput(
                             controller: _textCtrl,
-                            maxLines: qtype == 'numeric' ? 1 : 4,
-                            hint: qtype == 'numeric'
+                            maxLines: isNumeric ? 1 : 4,
+                            hint: isNumeric
                                 ? 'e.g. 42 or 3.14'
                                 : 'Type your answer…',
                             onChanged: (v) => _saveAnswer(
                                 qid,
-                                qtype == 'numeric'
-                                    ? {'value': v}
-                                    : {'text': v}),
+                                isNumeric ? {'value': v} : {'text': v}),
                           ),
                         ],
                       ),
@@ -512,7 +523,9 @@ class _OptionCard extends StatelessWidget {
                       color: selected ? AppColors.primary : AppColors.muted)),
             ),
             const SizedBox(width: 14),
-            Expanded(child: MixedMathText(latex, fontSize: 16)),
+            Expanded(
+                child: MixedMathText(latex,
+                    fontSize: 16, color: AppColors.onSurface)),
             if (selected)
               const Icon(Icons.check_circle, size: 20, color: AppColors.primary),
           ]),
