@@ -107,10 +107,19 @@ final router = GoRouter(
     GoRoute(path: '/student/hub', pageBuilder: (c, s) => _page(const StudentHubScreen(), s)),
     GoRoute(
         path: '/student/practice-generator',
-        pageBuilder: (c, s) => _page(
-            PracticeGeneratorScreen(
-                initialSubject: s.uri.queryParameters['subject']),
-            s)),
+        pageBuilder: (c, s) {
+          List<String>? csv(String k) {
+            final v = s.uri.queryParameters[k];
+            if (v == null || v.isEmpty) return null;
+            return v.split(',').where((e) => e.isNotEmpty).toList();
+          }
+          return _page(
+              PracticeGeneratorScreen(
+                  initialSubject: s.uri.queryParameters['subject'],
+                  initialCurricula: csv('curricula'),
+                  initialBoards: csv('boards')),
+              s);
+        }),
     GoRoute(
         path: '/student/exam',
         pageBuilder: (c, s) => _page(

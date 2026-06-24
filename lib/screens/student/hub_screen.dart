@@ -14,9 +14,13 @@ class StudentHubScreen extends StatefulWidget {
 }
 
 class _StudentHubScreenState extends State<StudentHubScreen> {
-  String? _subject; // selected subject; set from real available subjects
-  String _difficulty = 'Hard';
-  List<Map<String, dynamic>> _subjects = const []; // real subjects in the bank
+  // Exam focus for AI practice: the student's profile curricula + boards are the
+  // options; they pick which to practise for here, then choose subjects on the
+  // next screen.
+  List<String> _curricula = const [];
+  List<String> _boards = const [];
+  final Set<String> _selCurr = {};
+  final Set<String> _selBoard = {};
   Map<String, dynamic>? _nextExam;
   bool _loadingExam = true;
   List<dynamic> _activity = [];
@@ -27,20 +31,25 @@ class _StudentHubScreenState extends State<StudentHubScreen> {
     super.initState();
     _loadNext();
     _loadActivity();
-    _loadSubjects();
+    _loadFocus();
   }
 
-  Future<void> _loadSubjects() async {
+  Future<void> _loadFocus() async {
     try {
-      final rows = await Repo.practiceSubjects();
+      final curricula = await Repo.studentCurricula();
+      final boards = await Repo.studentBoards();
       if (!mounted) return;
       setState(() {
-        _subjects = rows.cast<Map<String, dynamic>>();
-        // Default the selection to the first subject that actually has questions.
-        _subject ??=
-            _subjects.isNotEmpty ? _subjects.first['subject'] as String? : null;
+        _curricula = curricula;
+        _boards = boards;
+        _selCurr
+          ..clear()
+          ..addAll(curricula);
+        _selBoard
+          ..clear()
+          ..addAll(boards);
       });
-    } catch (_) {/* leave subjects empty; the generator shows an empty state */}
+    } catch (_) {/* leave empty; practice falls back to everything */}
   }
 
   Future<void> _loadNext() async {
@@ -241,45 +250,62 @@ class _StudentHubScreenState extends State<StudentHubScreen> {
                       'history.',
                       style: Theme.of(context).textTheme.bodyMedium),
                   const SizedBox(height: 18),
-                  Row(children: [
-                    Text('SUBJECT:', style: AppTheme.mono(10, FontWeight.w600)),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: _subjects.isEmpty
-                          ? Text('No subjects yet',
-                              style: AppTheme.mono(10, FontWeight.w500,
-                                  color: AppColors.muted))
-                          : Wrap(spacing: 8, runSpacing: 8, children: [
-                              for (final s in _subjects)
-                                _MiniChip(
-                                    s['subject'] as String,
-                                    _subject == s['subject'],
-                                    () => setState(() =>
-                                        _subject = s['subject'] as String)),
-                            ]),
-                    ),
-                  ]),
-                  const SizedBox(height: 12),
-                  Row(children: [
-                    Text('DIFFICULTY:', style: AppTheme.mono(10, FontWeight.w600)),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Wrap(spacing: 8, children: [
-                        for (final d in ['Easy', 'Hard'])
-                          _MiniChip(d, _difficulty == d,
-                              () => setState(() => _difficulty = d),
-                              color: AppColors.teal),
+                  if (_curricula.isEmpty && _boards.isEmpty)
+                    Text(
+                        'Set your exam boards & curriculum in Profile to focus '
+                        'your practice — for now it draws from everything.',
+                        style: AppTheme.mono(10.5, FontWeight.w500,
+                            color: AppColors.muted))
+                  else ...[
+                    if (_boards.isNotEmpty) ...[
+                      Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        SizedBox(
+                            width: 92,
+                            child: Text('EXAM BOARD:',
+                                style: AppTheme.mono(10, FontWeight.w600))),
+                        Expanded(
+                          child: Wrap(spacing: 8, runSpacing: 8, children: [
+                            for (final b in _boards)
+                              _MiniChip(b, _selBoard.contains(b),
+                                  () => setState(() => _selBoard.contains(b)
+                                      ? _selBoard.remove(b)
+                                      : _selBoard.add(b)),
+                                  color: AppColors.teal),
+                          ]),
+                        ),
                       ]),
-                    ),
-                  ]),
+                      const SizedBox(height: 12),
+                    ],
+                    if (_curricula.isNotEmpty)
+                      Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        SizedBox(
+                            width: 92,
+                            child: Text('CURRICULUM:',
+                                style: AppTheme.mono(10, FontWeight.w600))),
+                        Expanded(
+                          child: Wrap(spacing: 8, runSpacing: 8, children: [
+                            for (final c in _curricula)
+                              _MiniChip(c, _selCurr.contains(c),
+                                  () => setState(() => _selCurr.contains(c)
+                                      ? _selCurr.remove(c)
+                                      : _selCurr.add(c))),
+                          ]),
+                        ),
+                      ]),
+                  ],
                   const SizedBox(height: 18),
                   AppButton('Generate Practice Set',
                       expand: true,
                       onPressed: () async {
-                        // Carry the chosen subject so the next screen pre-selects it.
-                        final q = _subject != null
-                            ? '?subject=${Uri.encodeComponent(_subject!)}'
-                            : '';
+                        // Carry the chosen exam focus to the next screen, where
+                        // the student picks subjects scoped to it.
+                        final qp = <String>[
+                          if (_selCurr.isNotEmpty)
+                            'curricula=${Uri.encodeComponent(_selCurr.join(","))}',
+                          if (_selBoard.isNotEmpty)
+                            'boards=${Uri.encodeComponent(_selBoard.join(","))}',
+                        ];
+                        final q = qp.isEmpty ? '' : '?${qp.join("&")}';
                         await context.push('/student/practice-generator$q');
                         // Refresh recent activity when returning from a session.
                         _loadActivity();

@@ -10,10 +10,16 @@ import 'student_shell.dart';
 /// (chapters) — e.g. to revise exactly what was taught that day, or to focus a
 /// quick exam on a topic they're weak in.
 class PracticeGeneratorScreen extends StatefulWidget {
-  const PracticeGeneratorScreen({super.key, this.initialSubject});
+  const PracticeGeneratorScreen(
+      {super.key, this.initialSubject, this.initialCurricula, this.initialBoards});
 
   /// Subject chosen on the hub; if it has questions it's pre-selected here.
   final String? initialSubject;
+
+  /// Curriculum + exam-board focus chosen on the hub. When provided these scope
+  /// this practice set; null falls back to the student's saved profile.
+  final List<String>? initialCurricula;
+  final List<String>? initialBoards;
 
   @override
   State<PracticeGeneratorScreen> createState() => _PracticeGeneratorScreenState();
@@ -34,6 +40,12 @@ class _PracticeGeneratorScreenState extends State<PracticeGeneratorScreen> {
   List<Map<String, dynamic>> _topics = const [];
   final Map<String, int> _topicCounts = {}; // "subjecttopic" -> count
   String _filter = '';
+
+  // Curriculum + exam-board scope for this set — chosen on the hub (or the
+  // student's profile as fallback). Shown read-only here; the picker lives on
+  // the hub now so subject selection is the focus of this screen.
+  final Set<String> _curricula = {};
+  final Set<String> _boards = {};
 
   static const _subjectIcons = {
     'Math': Icons.functions,
@@ -57,9 +69,18 @@ class _PracticeGeneratorScreenState extends State<PracticeGeneratorScreen> {
     });
     try {
       final rows = await Repo.practiceSubjects();
+      // Scope comes from the hub if passed, else the student's saved profile.
+      final curricula = widget.initialCurricula ?? await Repo.studentCurricula();
+      final boards = widget.initialBoards ?? await Repo.studentBoards();
       if (!mounted) return;
       setState(() {
         _subjects = rows.cast<Map<String, dynamic>>();
+        _curricula
+          ..clear()
+          ..addAll(curricula);
+        _boards
+          ..clear()
+          ..addAll(boards);
         _loading = false;
         _preselectInitial();
       });
@@ -141,7 +162,8 @@ class _PracticeGeneratorScreenState extends State<PracticeGeneratorScreen> {
                   'count': e.value,
                 }
             ];
-      final res = await Repo.practiceGenerate(items);
+      final res = await Repo.practiceGenerate(items,
+          curricula: _curricula.toList(), boards: _boards.toList());
       if (!mounted) return;
       context.push('/student/practice-session',
           extra: (res['questions'] as List<dynamic>));
@@ -214,6 +236,7 @@ class _PracticeGeneratorScreenState extends State<PracticeGeneratorScreen> {
                             const SizedBox(height: 16),
                             _modeToggle(context),
                             const SizedBox(height: 16),
+                            ..._scopeSummary(context),
                             if (_mode == 'subject')
                               ..._subjectBody(context)
                             else
@@ -280,6 +303,40 @@ class _PracticeGeneratorScreenState extends State<PracticeGeneratorScreen> {
       const SizedBox(width: 10),
       tab('topic', 'BY TOPIC', Icons.account_tree_outlined),
     ]);
+  }
+
+  // ---- Curriculum picker (per session) ----
+
+  /// Read-only banner showing the curriculum + exam-board focus chosen on the
+  /// hub. The student picks these on the hub; here they just pick subjects.
+  List<Widget> _scopeSummary(BuildContext context) {
+    if (_curricula.isEmpty && _boards.isEmpty) return const [];
+    final parts = <String>[
+      if (_boards.isNotEmpty) _boards.join(', '),
+      if (_curricula.isNotEmpty) _curricula.join(', '),
+    ];
+    return [
+      Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: AppColors.surfaceContainer,
+          borderRadius: BorderRadius.circular(AppRadius.md),
+          border: Border.all(color: AppColors.outline),
+        ),
+        child: Row(children: [
+          const Icon(Icons.tune, size: 16, color: AppColors.primary),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text('Focused on ${parts.join(" · ")}',
+                style: AppTheme.mono(12, FontWeight.w600,
+                    color: AppColors.onSurface),
+                overflow: TextOverflow.ellipsis),
+          ),
+        ]),
+      ),
+      const SizedBox(height: 16),
+    ];
   }
 
   // ---- Subject mode ----

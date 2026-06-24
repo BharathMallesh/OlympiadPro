@@ -337,9 +337,14 @@ class Repo {
       (await api.get('/v1/student/practice/topics')) as List<dynamic>;
 
   static Future<Map<String, dynamic>> practiceGenerate(
-          List<Map<String, dynamic>> items) async =>
-      (await api.post('/v1/student/practice/generate', {'items': items}))
-          as Map<String, dynamic>;
+          List<Map<String, dynamic>> items,
+          {List<String> curricula = const [],
+          List<String> boards = const []}) async =>
+      (await api.post('/v1/student/practice/generate', {
+        'items': items,
+        if (curricula.isNotEmpty) 'curricula': curricula,
+        if (boards.isNotEmpty) 'boards': boards,
+      })) as Map<String, dynamic>;
 
   static Future<Map<String, dynamic>> practiceGrade(
           List<Map<String, dynamic>> answers) async =>
@@ -378,6 +383,7 @@ class Repo {
     String? teacherCode,
     String? classId,
     List<String> targetBoards = const [],
+    List<String> curricula = const [],
   }) async {
     final r = await api.post('/v1/student/register', {
       'full_name': fullName,
@@ -387,6 +393,7 @@ class Repo {
         'teacher_code': teacherCode.trim(),
       if (classId != null && classId.isNotEmpty) 'class_id': classId,
       if (targetBoards.isNotEmpty) 'target_boards': targetBoards,
+      if (curricula.isNotEmpty) 'curricula': curricula,
     });
     await api.setSession(r['token'] as String, 'student');
     _captureStudentIdentity(r);
@@ -420,6 +427,19 @@ class Repo {
     final r = await api.put('/v1/student/boards', {'target_boards': boards})
         as Map<String, dynamic>;
     return ((r['target_boards'] as List?) ?? const []).cast<String>();
+  }
+
+  /// The curricula the student follows (NCERT / CBSE / State Board …).
+  static Future<List<String>> studentCurricula() async {
+    final r = await api.get('/v1/student/curricula') as Map<String, dynamic>;
+    return ((r['curricula'] as List?) ?? const []).cast<String>();
+  }
+
+  /// Replace the student's curricula; returns the saved (normalised) list.
+  static Future<List<String>> setStudentCurricula(List<String> curricula) async {
+    final r = await api.put('/v1/student/curricula', {'curricula': curricula})
+        as Map<String, dynamic>;
+    return ((r['curricula'] as List?) ?? const []).cast<String>();
   }
 
   /// Subtitle under the student's name shows their class (e.g. "2 PUC-KCET"),

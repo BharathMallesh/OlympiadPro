@@ -388,7 +388,11 @@ class StatBlock extends StatelessWidget {
                 style: GoogleFontsHelper.value(valueColor ?? AppColors.onSurface)),
             if (delta != null) ...[
               const SizedBox(width: 8),
-              Text(delta!, style: AppTheme.mono(12, FontWeight.w600, color: deltaColor)),
+              Flexible(
+                child: Text(delta!,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTheme.mono(12, FontWeight.w600, color: deltaColor)),
+              ),
             ],
           ]),
         ],
