@@ -86,8 +86,11 @@ class MixedMathText extends StatelessWidget {
         alignment: PlaceholderAlignment.middle,
         child: Math.tex(
           tex,
+          // Inline math must match the surrounding prose colour, or it renders
+          // near-white (invisible) on light cards. Fall back to onSurface.
           textStyle: TextStyle(
-              fontSize: fontSize, color: color ?? const Color(0xFFF5F5F5)),
+              fontSize: fontSize,
+              color: color ?? base.color ?? AppColors.onSurface),
           onErrorFallback: (_) => Text('\$$tex\$', style: base),
         ),
       ));

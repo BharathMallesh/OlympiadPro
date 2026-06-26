@@ -19,6 +19,10 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
   bool _loading = true;
   List<String> _boards = [];
   static const _boardOptions = ['JEE', 'NEET', 'CET', 'CBSE', 'State Board'];
+  List<String> _curricula = [];
+  static const _curriculumOptions = [
+    'NCERT', 'CBSE', 'State Board', 'ICSE', 'IB', 'Other'
+  ];
 
   @override
   void initState() {
@@ -42,9 +46,26 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
     }
   }
 
+  Future<void> _toggleCurriculum(String c) async {
+    final next = List<String>.from(_curricula);
+    next.contains(c) ? next.remove(c) : next.add(c);
+    setState(() => _curricula = next);
+    try {
+      final saved = await Repo.setStudentCurricula(next);
+      if (mounted) setState(() => _curricula = saved);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('Could not save: $e'),
+            backgroundColor: AppColors.error));
+      }
+    }
+  }
+
   Future<void> _load() async {
     try {
       _boards = await Repo.studentBoards();
+      _curricula = await Repo.studentCurricula();
       final exams = await Repo.studentExams();
       var sum = 0.0;
       var graded = 0;
@@ -155,6 +176,52 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
                             child: Text(b,
                                 style: TextStyle(
                                     color: _boards.contains(b)
+                                        ? AppColors.onPrimary
+                                        : AppColors.onSurface,
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 13)),
+                          ),
+                        ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+            const StudentSection('Curriculum / Syllabus', icon: Icons.menu_book_outlined),
+            AppCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                      'Pick the curriculum you follow — your AI practice is '
+                      'scoped to these (plus general questions).',
+                      style: Theme.of(context).textTheme.bodySmall),
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (final c in _curriculumOptions)
+                        InkWell(
+                          onTap: _loading ? null : () => _toggleCurriculum(c),
+                          borderRadius: BorderRadius.circular(AppRadius.pill),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 16, vertical: 9),
+                            decoration: BoxDecoration(
+                              color: _curricula.contains(c)
+                                  ? AppColors.primary
+                                  : AppColors.surfaceContainer,
+                              borderRadius: BorderRadius.circular(AppRadius.pill),
+                              border: Border.all(
+                                  color: _curricula.contains(c)
+                                      ? AppColors.primary
+                                      : AppColors.outlineStrong),
+                            ),
+                            child: Text(c,
+                                style: TextStyle(
+                                    color: _curricula.contains(c)
                                         ? AppColors.onPrimary
                                         : AppColors.onSurface,
                                     fontWeight: FontWeight.w600,

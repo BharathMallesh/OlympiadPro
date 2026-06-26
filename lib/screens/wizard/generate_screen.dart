@@ -6,6 +6,7 @@ import '../../data/repo.dart';
 import '../../widgets/app_shell.dart';
 import '../../widgets/common.dart';
 import '../../widgets/math_text.dart';
+import 'puc_paper_screen.dart' show kSubjects;
 
 /// Validator / teacher workspace: upload a syllabus, generate questions from
 /// its chapters with Gemini, then review and approve them into the bank. This
@@ -34,6 +35,15 @@ class _GenerateScreenState extends State<GenerateScreen> {
   final Set<String> _selChapters = {};
   int _mcq = 5, _short = 0, _long = 0;
   bool _busy = false;
+
+  // Curriculum → Subject cascade filters: narrow which syllabi (and therefore
+  // which topics/chapters) are shown before picking topics to generate from.
+  String? _selCurriculum;
+  String? _selSubject;
+  // Blueprint extracted from an uploaded previous paper (analyzePaper) plus
+  // whether to also mimic its wording/difficulty in the new questions.
+  Map<String, dynamic>? _paperFormat;
+  bool _mimicStyle = true;
 
   // Per-question chosen correct option index in the review tab.
   final Map<String, int> _correctSel = {};
@@ -92,11 +102,12 @@ class _GenerateScreenState extends State<GenerateScreen> {
   /// Ask for the subject, then pick a PDF and upload it as a syllabus.
   Future<void> _startUpload() async {
     if (_busy) return;
-    final ctrl = TextEditingController();
+    final yearCtrl = TextEditingController();
     String? classId;
+    String? selSubject;
     final boards = <String>{};
     const boardOptions = ['JEE', 'NEET', 'CET', 'CBSE', 'State Board'];
-    final result = await showDialog<(String, String?, List<String>)>(
+    final result = await showDialog<(String, String?, List<String>, String?)>(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setLocal) => AlertDialog(
@@ -109,8 +120,23 @@ class _GenerateScreenState extends State<GenerateScreen> {
             children: [
               const Text('Which subject is this syllabus for?'),
               const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                value: selSubject,
+                isExpanded: true,
+                decoration: const InputDecoration(
+                    labelText: 'Subject', isDense: true),
+                items: kSubjects
+                    .map((s) => DropdownMenuItem(value: s, child: Text(s)))
+                    .toList(),
+                onChanged: (v) => setLocal(() => selSubject = v),
+              ),
+              const SizedBox(height: 12),
+              const Text('Academic year (optional — labels this edition)'),
+              const SizedBox(height: 8),
               AppInput(
-                  controller: ctrl, hint: 'e.g. Physics', icon: Icons.book_outlined),
+                  controller: yearCtrl,
+                  hint: 'e.g. 2025-26',
+                  icon: Icons.event_outlined),
               const SizedBox(height: 16),
               Text(_classes.isEmpty
                   ? 'No classes yet — create one first so you can tag this.'
@@ -191,9 +217,13 @@ class _GenerateScreenState extends State<GenerateScreen> {
                 child: const Text('Cancel')),
             TextButton(
                 onPressed: () {
-                  final s = ctrl.text.trim();
-                  if (s.isEmpty) return;
-                  Navigator.pop(ctx, (s, classId, boards.toList()));
+                  final s = selSubject?.trim() ?? '';
+                  if (s.isEmpty) {
+                    _toast('Pick a subject', error: true);
+                    return;
+                  }
+                  Navigator.pop(ctx,
+                      (s, classId, boards.toList(), yearCtrl.text.trim()));
                 },
                 child: const Text('Choose PDF')),
           ],
@@ -204,6 +234,7 @@ class _GenerateScreenState extends State<GenerateScreen> {
     final subject = result.$1;
     final classId2 = result.$2;
     final boards2 = result.$3;
+    final year2 = result.$4;
 
     final picked = await FilePicker.platform.pickFiles(
       type: FileType.custom,
@@ -224,7 +255,7 @@ class _GenerateScreenState extends State<GenerateScreen> {
         _toast(
             'Uploading "${file.name}" (${done + 1}/${files.length}) — extracting chapters…');
         await Repo.uploadSyllabus(file.bytes!, file.name, subject,
-            classId: classId2, boards: boards2);
+            classId: classId2, boards: boards2, academicYear: year2);
         done++;
       }
       await _load();
@@ -280,6 +311,16 @@ class _GenerateScreenState extends State<GenerateScreen> {
     final shortEach = _splitByChapter(_short, counts);
     final longEach = _splitByChapter(_long, counts);
 
+    // When a previous paper was analyzed and "mimic style" is on, mirror its
+    // wording/difficulty in the new questions.
+    String? styleRef;
+    if (_paperFormat != null && _mimicStyle) {
+      final parts = [_paperFormat!['difficulty'], _paperFormat!['style_notes']]
+          .where((x) => x != null && x.toString().trim().isNotEmpty)
+          .map((x) => x.toString());
+      if (parts.isNotEmpty) styleRef = parts.join(' — ');
+    }
+
     setState(() => _busy = true);
     _toast('Generating questions — this can take a moment…');
     var total = 0;
@@ -292,6 +333,7 @@ class _GenerateScreenState extends State<GenerateScreen> {
           mcq: mcqEach[i],
           short: shortEach[i],
           long: longEach[i],
+          styleReference: styleRef,
         );
         total += (r['generated'] as num?)?.toInt() ?? 0;
       }
@@ -303,6 +345,34 @@ class _GenerateScreenState extends State<GenerateScreen> {
       _toast('$total questions generated — review & approve them now');
     } catch (e) {
       _toast('Generation failed: $e', error: true);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  /// Pick a previous question paper PDF and extract its FORMAT — pre-fills the
+  /// MCQ/short/long counts and (when "mimic style" stays on) makes the new
+  /// questions follow its wording and difficulty.
+  Future<void> _analyzePaper() async {
+    if (_busy) return;
+    final picked = await FilePicker.platform.pickFiles(
+        type: FileType.custom, allowedExtensions: ['pdf'], withData: true);
+    final file = picked?.files.firstOrNull;
+    if (file == null || file.bytes == null) return;
+    setState(() => _busy = true);
+    _toast('Reading the paper\'s format…');
+    try {
+      final fmt = await Repo.analyzePaper(file.bytes!, file.name);
+      setState(() {
+        _paperFormat = fmt;
+        _mimicStyle = true;
+        _mcq = ((fmt['mcq'] as num?)?.toInt() ?? _mcq).clamp(0, 30);
+        _short = ((fmt['short'] as num?)?.toInt() ?? _short).clamp(0, 15);
+        _long = ((fmt['long'] as num?)?.toInt() ?? _long).clamp(0, 10);
+      });
+      _toast('Format detected — counts set. Pick topics, then Generate.');
+    } catch (e) {
+      _toast('$e', error: true);
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -330,10 +400,55 @@ class _GenerateScreenState extends State<GenerateScreen> {
   /// then sees all of that class's chapters flat — regardless of how many
   /// subject PDFs were uploaded under it. Syllabi with no class (the global
   /// self-study pool) fall under "All students".
+  /// Distinct curricula across uploaded syllabi (for the cascade dropdown).
+  List<String> _curriculaList() {
+    final set = <String>{};
+    for (final s in _syllabi) {
+      final c = ((s as Map)['curriculum'] as String?)?.trim() ?? '';
+      if (c.isNotEmpty) set.add(c);
+    }
+    final l = set.toList()..sort();
+    return l;
+  }
+
+  /// Distinct subjects, narrowed to the chosen curriculum if one is picked.
+  List<String> _subjectsList() {
+    final set = <String>{};
+    for (final s in _syllabi) {
+      final syl = s as Map;
+      if (syl['archived'] == true) continue;
+      final c = (syl['curriculum'] as String?)?.trim() ?? '';
+      if (_selCurriculum != null && _selCurriculum!.isNotEmpty && c != _selCurriculum) {
+        continue;
+      }
+      final subj = (syl['subject'] as String?)?.trim() ?? '';
+      if (subj.isNotEmpty) set.add(subj);
+    }
+    final l = set.toList()..sort();
+    return l;
+  }
+
+  bool _passesCascade(Map syl) {
+    final c = (syl['curriculum'] as String?)?.trim() ?? '';
+    final subj = (syl['subject'] as String?)?.trim() ?? '';
+    if (_selCurriculum != null && _selCurriculum!.isNotEmpty && c != _selCurriculum) {
+      return false;
+    }
+    if (_selSubject != null && _selSubject!.isNotEmpty && subj != _selSubject) {
+      return false;
+    }
+    return true;
+  }
+
   List<_ClassGroup> _classGroups() {
     final map = <String, _ClassGroup>{};
     for (final s in _syllabi) {
       final syl = s as Map<String, dynamic>;
+      // Archived (superseded) syllabus editions don't appear in the generate
+      // picker — so questions are only ever generated from the current year's.
+      if (syl['archived'] == true) continue;
+      // Honour the Curriculum → Subject cascade filters.
+      if (!_passesCascade(syl)) continue;
       final cid = syl['class_id'] as String?;
       final key = cid ?? '__none__';
       final name = (syl['class_name'] as String?)?.trim();
@@ -361,12 +476,39 @@ class _GenerateScreenState extends State<GenerateScreen> {
     return null;
   }
 
-  Future<void> _approve(Map<String, dynamic> q) async {
+  /// Attach a figure (gallery/file) to a generated question the AI flagged as
+  /// needing one, so it doesn't reach the bank blank.
+  Future<void> _attachFigure(Map<String, dynamic> q) async {
     final id = q['id'] as String;
-    final isMcq = q['qtype'] == 'multiple_choice';
+    final picked = await FilePicker.platform.pickFiles(
+        type: FileType.image, withData: true);
+    final file = picked?.files.firstOrNull;
+    if (file == null || file.bytes == null) return;
     setState(() => _busy = true);
     try {
-      if (isMcq && _correctSel.containsKey(id)) {
+      final updated = await Repo.uploadGeneratedImage(id, file.bytes!, file.name);
+      final i = _pending.indexWhere((x) => x['id'] == id);
+      if (i >= 0) {
+        setState(() => _pending[i] = {
+              ..._pending[i] as Map<String, dynamic>,
+              'image_urls': updated['image_urls'],
+              'needs_figure': updated['needs_figure'],
+            });
+      }
+      _toast('Figure attached');
+    } catch (e) {
+      _toast('$e', error: true);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _approve(Map<String, dynamic> q) async {
+    final id = q['id'] as String;
+    final hasOptions = ((q['options'] as List?) ?? const []).isNotEmpty;
+    setState(() => _busy = true);
+    try {
+      if (hasOptions && _correctSel.containsKey(id)) {
         await Repo.editGenerated(id, correct: _correctSel[id]);
       }
       await Repo.approveGenerated(id);
@@ -529,6 +671,8 @@ class _GenerateScreenState extends State<GenerateScreen> {
               style: Theme.of(context).textTheme.bodyMedium),
         )
       else ...[
+        ..._cascadeAndFormat(),
+        const SizedBox(height: 18),
         Text('CHOOSE A CLASS',
             style: AppTheme.mono(11, FontWeight.w600,
                 color: AppColors.muted, ls: 1.2)),
@@ -570,6 +714,139 @@ class _GenerateScreenState extends State<GenerateScreen> {
     ];
   }
 
+  /// The Curriculum → Subject cascade filters plus the "match a previous
+  /// paper's format" control. Sits above the class/topic picker.
+  List<Widget> _cascadeAndFormat() {
+    final curricula = _curriculaList();
+    final subjects = _subjectsList();
+    // Keep dropdown values valid: clear a subject that the chosen curriculum
+    // no longer offers (Flutter throws if value isn't among items).
+    if (_selSubject != null && !subjects.contains(_selSubject)) {
+      _selSubject = null;
+    }
+    final fmt = _paperFormat;
+    return [
+      AppCard(
+        color: AppColors.surfaceContainer,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SectionTitle('Curriculum → Subject → Topics',
+                icon: Icons.account_tree_outlined),
+            const SizedBox(height: 6),
+            Text(
+                'Pick a curriculum and subject to narrow the topics below, then '
+                'select topics to generate from.',
+                style: Theme.of(context).textTheme.bodyMedium),
+            const SizedBox(height: 12),
+            Row(children: [
+              Expanded(
+                child: DropdownButtonFormField<String>(
+                  value: (_selCurriculum?.isNotEmpty ?? false) ? _selCurriculum : null,
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                      labelText: 'Curriculum', isDense: true),
+                  items: [
+                    const DropdownMenuItem(value: null, child: Text('Any')),
+                    ...curricula.map((c) =>
+                        DropdownMenuItem(value: c, child: Text(c))),
+                  ],
+                  onChanged: (v) => setState(() {
+                    _selCurriculum = v;
+                    _selChapters.clear();
+                  }),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: DropdownButtonFormField<String>(
+                  value: (_selSubject?.isNotEmpty ?? false) ? _selSubject : null,
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                      labelText: 'Subject', isDense: true),
+                  items: [
+                    const DropdownMenuItem(value: null, child: Text('All')),
+                    ...subjects.map((s) =>
+                        DropdownMenuItem(value: s, child: Text(s))),
+                  ],
+                  onChanged: (v) => setState(() {
+                    _selSubject = v;
+                    _selChapters.clear();
+                  }),
+                ),
+              ),
+            ]),
+            const Divider(height: 24),
+            Row(children: [
+              const Icon(Icons.description_outlined,
+                  size: 18, color: AppColors.primary),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text('Match a previous paper (optional)',
+                    style: AppTheme.mono(12, FontWeight.w700,
+                        color: AppColors.onSurface)),
+              ),
+            ]),
+            const SizedBox(height: 4),
+            Text(
+                'Upload a past paper — we read its format and pre-fill the '
+                'counts. Keep "mimic style" on to copy its wording & difficulty.',
+                style: Theme.of(context).textTheme.bodySmall),
+            const SizedBox(height: 10),
+            AppButton(_busy ? 'Working…' : 'Upload previous paper',
+                kind: AppBtnKind.ghost,
+                icon: Icons.upload_file,
+                onPressed: _busy ? null : _analyzePaper),
+            if (fmt != null) ...[
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.scaffold,
+                  borderRadius: BorderRadius.circular(AppRadius.sm),
+                  border: Border.all(color: AppColors.outline),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                        'Detected: ${(fmt['mcq'] as num?)?.toInt() ?? 0} MCQ · '
+                        '${(fmt['short'] as num?)?.toInt() ?? 0} short · '
+                        '${(fmt['long'] as num?)?.toInt() ?? 0} long'
+                        '${fmt['total_marks'] != null ? ' · ${(fmt['total_marks'] as num).toInt()} marks' : ''}',
+                        style: AppTheme.mono(12, FontWeight.w700,
+                            color: AppColors.onSurface)),
+                    if ((fmt['difficulty'] as String?)?.trim().isNotEmpty ?? false) ...[
+                      const SizedBox(height: 6),
+                      Text('Difficulty: ${fmt['difficulty']}',
+                          style: Theme.of(context).textTheme.bodySmall),
+                    ],
+                    if ((fmt['style_notes'] as String?)?.trim().isNotEmpty ?? false) ...[
+                      const SizedBox(height: 4),
+                      Text('Style: ${fmt['style_notes']}',
+                          style: Theme.of(context).textTheme.bodySmall),
+                    ],
+                    const SizedBox(height: 6),
+                    Row(children: [
+                      Checkbox(
+                        value: _mimicStyle,
+                        activeColor: AppColors.primary,
+                        onChanged: (v) =>
+                            setState(() => _mimicStyle = v ?? true),
+                      ),
+                      const Expanded(
+                          child: Text('Mimic style & difficulty when generating')),
+                    ]),
+                  ],
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    ];
+  }
+
   /// All of the selected class's chapters, flat and grouped by subject, with
   /// the question-count steppers and the generate button.
   List<Widget> _classChapters(_ClassGroup group) {
@@ -578,19 +855,22 @@ class _GenerateScreenState extends State<GenerateScreen> {
     var anyChapters = false;
     for (final syl in group.syllabi) {
       final subject = syl['subject']?.toString() ?? 'Subject';
+      final year = (syl['academic_year'] as String?)?.trim() ?? '';
+      // Edition label keeps two years of the same subject distinguishable.
+      final header = year.isEmpty ? subject : '$subject · $year';
       final chapters = (syl['chapters'] as List?) ?? const [];
       for (final c in chapters) {
         anyChapters = true;
         final ch = c as Map<String, dynamic>;
         final cid = ch['id'] as String;
         final on = _selChapters.contains(cid);
-        // Subject subheader whenever the subject changes — keeps the flat list
-        // scannable when a class spans several subject PDFs.
-        if (subject != lastSubject) {
-          lastSubject = subject;
+        // Subheader whenever the edition changes — keeps the flat list scannable
+        // when a class spans several subject PDFs / years.
+        if (header != lastSubject) {
+          lastSubject = header;
           rows.add(Padding(
             padding: const EdgeInsets.only(top: 10, bottom: 2),
-            child: Text(subject.toUpperCase(),
+            child: Text(header.toUpperCase(),
                 style: AppTheme.mono(11, FontWeight.w700,
                     color: AppColors.primary, ls: 0.8)),
           ));
@@ -725,9 +1005,16 @@ class _GenerateScreenState extends State<GenerateScreen> {
 
   Widget _reviewCard(Map<String, dynamic> q) {
     final id = q['id'] as String;
-    final isMcq = q['qtype'] == 'multiple_choice';
     final isBank = q['_source'] == 'bank';
     final options = (q['options'] as List?) ?? const [];
+    // Any option-bearing type (MCQ, assertion-reason, match-columns) gets the
+    // selectable option list + correct-key picker.
+    final isMcq = options.isNotEmpty;
+    final answerText = (q['answer_text'] as String?)?.trim() ?? '';
+    final marking = (q['marking_scheme'] as List?) ?? const [];
+    final solution = (q['solution'] as String?)?.trim() ?? '';
+    final imageUrls = ((q['image_urls'] as List?) ?? const []).cast<String>();
+    final needsFigure = q['needs_figure'] == true && imageUrls.isEmpty;
     // Default selected correct option = whichever the AI flagged, if any.
     final flagged = options.indexWhere(
         (o) => o is Map && o['correct'] == true);
@@ -743,6 +1030,16 @@ class _GenerateScreenState extends State<GenerateScreen> {
               StatusChip(_typeLabel(q['qtype']?.toString()),
                   color: AppColors.primary),
               const SizedBox(width: 8),
+              if (q['difficulty'] != null) ...[
+                DifficultyChip((q['difficulty'] as num).toInt()),
+                const SizedBox(width: 8),
+              ],
+              if (needsFigure) ...[
+                StatusChip('Needs figure',
+                    color: AppColors.secondary,
+                    icon: Icons.image_not_supported_outlined),
+                const SizedBox(width: 8),
+              ],
               if (isBank) ...[
                 StatusChip('Needs key',
                     color: AppColors.secondary, icon: Icons.vpn_key_outlined),
@@ -829,6 +1126,96 @@ class _GenerateScreenState extends State<GenerateScreen> {
                   style: AppTheme.mono(10.5, FontWeight.w500,
                       color: AppColors.muted)),
             ],
+            // Numeric answer (integer/numeric types) so the validator can verify it.
+            if (!isMcq && answerText.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('Answer:  ',
+                    style: AppTheme.mono(12, FontWeight.w700,
+                        color: AppColors.success)),
+                Expanded(
+                  child: MixedMathText(answerText,
+                      fontSize: 14, color: AppColors.onSurface),
+                ),
+              ]),
+            ],
+            // Step-wise marking scheme for long / case-study answers.
+            if (marking.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              Text('MARKING SCHEME',
+                  style: AppTheme.mono(10, FontWeight.w700,
+                      color: AppColors.muted, ls: 1)),
+              const SizedBox(height: 4),
+              for (final m in marking)
+                if (m is Map)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 3),
+                    child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('+${m['marks'] ?? 0}  ',
+                              style: AppTheme.mono(11, FontWeight.w700,
+                                  color: AppColors.success)),
+                          Expanded(
+                            child: MixedMathText(
+                                (m['step'] ?? '').toString(),
+                                fontSize: 13,
+                                color: AppColors.onSurface),
+                          ),
+                        ]),
+                  ),
+            ],
+            // Worked solution for non-option types (short/long/case-study/integer).
+            if (!isMcq && solution.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              Text('MODEL ANSWER',
+                  style: AppTheme.mono(10, FontWeight.w700,
+                      color: AppColors.muted, ls: 1)),
+              const SizedBox(height: 4),
+              MixedMathText(solution,
+                  fontSize: 13, color: AppColors.onSurface),
+            ],
+            // Attached figures, if any.
+            if (imageUrls.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final url in imageUrls)
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(AppRadius.sm),
+                      child: Image.network(url,
+                          height: 80,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => const SizedBox(
+                              height: 80, width: 80,
+                              child: Icon(Icons.broken_image_outlined,
+                                  color: AppColors.muted))),
+                    ),
+                ],
+              ),
+            ],
+            // Figure attach (this question references a diagram the AI couldn't draw).
+            if (q['needs_figure'] == true || imageUrls.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              if (needsFigure)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: Text(
+                      'This question references a figure — attach it before approving.',
+                      style: AppTheme.mono(10.5, FontWeight.w500,
+                          color: AppColors.secondary)),
+                ),
+              OutlinedButton.icon(
+                onPressed: _busy ? null : () => _attachFigure(q),
+                icon: const Icon(Icons.add_photo_alternate_outlined, size: 16),
+                label: Text(imageUrls.isEmpty ? 'Attach figure' : 'Add another figure'),
+                style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.primary,
+                    side: const BorderSide(color: AppColors.outlineStrong)),
+              ),
+            ],
             const SizedBox(height: 12),
             if (isBank)
               AppButton('Save answer key',
@@ -860,6 +1247,15 @@ class _GenerateScreenState extends State<GenerateScreen> {
         return 'Short';
       case 'long_answer':
         return 'Long';
+      case 'integer':
+      case 'numeric':
+        return 'Numeric';
+      case 'assertion_reason':
+        return 'Assertion–Reason';
+      case 'match_columns':
+        return 'Match';
+      case 'case_study':
+        return 'Case Study';
       default:
         return 'MCQ';
     }

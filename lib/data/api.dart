@@ -1,5 +1,6 @@
 import 'dart:async' show TimeoutException;
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart'
     show kIsWeb, defaultTargetPlatform, TargetPlatform;
@@ -135,6 +136,22 @@ class ApiClient {
     try {
       final uri = Uri.parse('$baseUrl$path').replace(queryParameters: query);
       return _decode(await http.get(uri, headers: _headers).timeout(_timeout));
+    } on TimeoutException {
+      _throwTimeout();
+    }
+  }
+
+  /// Raw binary GET (e.g. a source PDF). Returns null on 404.
+  Future<Uint8List?> getBytes(String path) async {
+    try {
+      final r = await http
+          .get(Uri.parse('$baseUrl$path'), headers: _headers)
+          .timeout(_timeout);
+      if (r.statusCode == 404) return null;
+      if (r.statusCode >= 400) {
+        throw ApiException(r.statusCode, 'Request failed (${r.statusCode})');
+      }
+      return r.bodyBytes;
     } on TimeoutException {
       _throwTimeout();
     }

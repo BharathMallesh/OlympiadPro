@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'api.dart';
 
 /// Typed wrappers over the backend API. All methods return decoded JSON
@@ -116,6 +118,11 @@ class Repo {
   static Future<Map<String, dynamic>> questionSource(String id) async =>
       (await api.get('/v1/questions/$id/source')) as Map<String, dynamic>;
 
+  /// The original PDF a question was imported from (for crop-a-figure). Null if
+  /// the question wasn't imported from a PDF.
+  static Future<Uint8List?> questionSourcePdf(String id) =>
+      api.getBytes('/v1/questions/$id/source-pdf');
+
   /// Ask Gemini for a fresh variant of a question; persists and returns it.
   static Future<Map<String, dynamic>> regenerateQuestion(String id) async =>
       (await api.post('/v1/questions/$id/regenerate')) as Map<String, dynamic>;
@@ -144,7 +151,9 @@ class Repo {
   /// (Gemini), so allow plenty of time.
   static Future<Map<String, dynamic>> uploadSyllabus(
           List<int> bytes, String filename, String subject,
-          {String? classId, List<String> boards = const []}) async =>
+          {String? classId,
+          List<String> boards = const [],
+          String? academicYear}) async =>
       (await api.upload('/v1/syllabi',
           bytes: bytes,
           filename: filename,
@@ -152,24 +161,74 @@ class Repo {
             'subject': subject,
             if (classId != null && classId.isNotEmpty) 'class_id': classId,
             if (boards.isNotEmpty) 'boards': boards.join(','),
+            if (academicYear != null && academicYear.isNotEmpty)
+              'academic_year': academicYear,
           },
           timeout: const Duration(seconds: 180))) as Map<String, dynamic>;
 
+  /// Archive (hide from the generate picker) or restore a syllabus version.
+  static Future<void> archiveSyllabus(String id, bool archived) async {
+    await api.post('/v1/syllabi/$id/archive', {'archived': archived});
+  }
+
   /// Generate a mix of questions for the chosen chapters into staging.
+  /// `styleReference` (from [analyzePaper]) makes the new questions mimic a
+  /// previous paper's wording and difficulty.
   static Future<Map<String, dynamic>> generateFromSyllabus(
     String syllabusId, {
     required List<String> chapterIds,
     int mcq = 0,
     int short = 0,
     int long = 0,
+    String? board,
+    String? styleReference,
   }) async {
     return (await api.post('/v1/syllabi/$syllabusId/generate', {
       'chapter_ids': chapterIds,
       'mcq': mcq,
       'short': short,
       'long': long,
+      if (board != null && board.isNotEmpty) 'board': board,
+      if (styleReference != null && styleReference.isNotEmpty)
+        'style_reference': styleReference,
     }, const Duration(seconds: 240))) as Map<String, dynamic>;
   }
+
+  /// Analyse a previous question paper PDF and return its format/blueprint:
+  /// { mcq, short, long, total_marks, difficulty, style_notes, sections[], topics[] }.
+  static Future<Map<String, dynamic>> analyzePaper(
+          List<int> bytes, String filename) async =>
+      (await api.upload('/v1/papers/analyze',
+          bytes: bytes,
+          filename: filename,
+          fields: const {},
+          timeout: const Duration(seconds: 180))) as Map<String, dynamic>;
+
+  /// Topics (syllabus chapters) for a class / curriculum / subject — powers the
+  /// PUC paper cascade. Each carries its chapter_id + syllabus_id.
+  static Future<List<dynamic>> syllabusTopics(
+      {String? classId, String? curriculum, String? subject}) async {
+    final q = <String, String>{};
+    if (classId != null && classId.isNotEmpty) q['class_id'] = classId;
+    if (curriculum != null && curriculum.isNotEmpty) q['curriculum'] = curriculum;
+    if (subject != null && subject.isNotEmpty) q['subject'] = subject;
+    final d = await api.get('/v1/syllabi/topics', query: q) as Map<String, dynamic>;
+    return (d['topics'] as List?) ?? const [];
+  }
+
+  /// Generate a fresh PUC paper from the textbook chapters per the blueprint.
+  /// Returns the full paper (sections + answer_key + shortfalls). Slow (AI).
+  static Future<Map<String, dynamic>> generatePaper(
+          Map<String, dynamic> body) async =>
+      (await api.post('/v1/papers/generate', body, const Duration(seconds: 280)))
+          as Map<String, dynamic>;
+
+  /// Submit a (possibly edited) paper's questions into the Question Bank so
+  /// students can take them. Returns { inserted: N }.
+  static Future<Map<String, dynamic>> submitPaper(
+          Map<String, dynamic> body) async =>
+      (await api.post('/v1/papers/submit', body, const Duration(seconds: 60)))
+          as Map<String, dynamic>;
 
   /// Generated questions awaiting review (`pending`) or history (`approved`).
   static Future<List<dynamic>> generatedQuestions({String status = 'pending'}) async =>
@@ -204,6 +263,18 @@ class Repo {
   /// Discard a generated question without adding it to the bank.
   static Future<Map<String, dynamic>> rejectGenerated(String id) async =>
       (await api.post('/v1/chapters/generated/$id/reject'))
+          as Map<String, dynamic>;
+
+  /// Attach a figure to a generated question (for `needs_figure` ones) before
+  /// approval. Returns the updated generated row (with image_urls).
+  static Future<Map<String, dynamic>> uploadGeneratedImage(
+          String id, List<int> bytes, String filename) async =>
+      (await api.upload('/v1/chapters/generated/$id/images',
+          bytes: bytes, filename: filename)) as Map<String, dynamic>;
+
+  static Future<Map<String, dynamic>> removeGeneratedImage(
+          String id, String url) async =>
+      (await api.delete('/v1/chapters/generated/$id/images', {'url': url}))
           as Map<String, dynamic>;
 
   // ---- PDF import ----
@@ -316,9 +387,14 @@ class Repo {
       (await api.get('/v1/student/practice/topics')) as List<dynamic>;
 
   static Future<Map<String, dynamic>> practiceGenerate(
-          List<Map<String, dynamic>> items) async =>
-      (await api.post('/v1/student/practice/generate', {'items': items}))
-          as Map<String, dynamic>;
+          List<Map<String, dynamic>> items,
+          {List<String> curricula = const [],
+          List<String> boards = const []}) async =>
+      (await api.post('/v1/student/practice/generate', {
+        'items': items,
+        if (curricula.isNotEmpty) 'curricula': curricula,
+        if (boards.isNotEmpty) 'boards': boards,
+      })) as Map<String, dynamic>;
 
   static Future<Map<String, dynamic>> practiceGrade(
           List<Map<String, dynamic>> answers) async =>
@@ -357,6 +433,7 @@ class Repo {
     String? teacherCode,
     String? classId,
     List<String> targetBoards = const [],
+    List<String> curricula = const [],
   }) async {
     final r = await api.post('/v1/student/register', {
       'full_name': fullName,
@@ -366,10 +443,27 @@ class Repo {
         'teacher_code': teacherCode.trim(),
       if (classId != null && classId.isNotEmpty) 'class_id': classId,
       if (targetBoards.isNotEmpty) 'target_boards': targetBoards,
+      if (curricula.isNotEmpty) 'curricula': curricula,
     });
     await api.setSession(r['token'] as String, 'student');
     _captureStudentIdentity(r);
     return r as Map<String, dynamic>;
+  }
+
+  /// Step 1 of password reset: request a one-time code be emailed. The backend
+  /// always returns 200 (it never reveals whether the email is registered).
+  static Future<void> studentForgotPassword(String email) async {
+    await api.post('/v1/student/forgot-password', {'email': email});
+  }
+
+  /// Step 2: submit the emailed code + a new password.
+  static Future<void> studentResetPassword(
+      String email, String code, String newPassword) async {
+    await api.post('/v1/student/reset-password', {
+      'email': email,
+      'code': code,
+      'new_password': newPassword,
+    });
   }
 
   /// The exam boards the student is preparing for (JEE / NEET / CET …).
@@ -383,6 +477,19 @@ class Repo {
     final r = await api.put('/v1/student/boards', {'target_boards': boards})
         as Map<String, dynamic>;
     return ((r['target_boards'] as List?) ?? const []).cast<String>();
+  }
+
+  /// The curricula the student follows (NCERT / CBSE / State Board …).
+  static Future<List<String>> studentCurricula() async {
+    final r = await api.get('/v1/student/curricula') as Map<String, dynamic>;
+    return ((r['curricula'] as List?) ?? const []).cast<String>();
+  }
+
+  /// Replace the student's curricula; returns the saved (normalised) list.
+  static Future<List<String>> setStudentCurricula(List<String> curricula) async {
+    final r = await api.put('/v1/student/curricula', {'curricula': curricula})
+        as Map<String, dynamic>;
+    return ((r['curricula'] as List?) ?? const []).cast<String>();
   }
 
   /// Subtitle under the student's name shows their class (e.g. "2 PUC-KCET"),

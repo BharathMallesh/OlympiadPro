@@ -15,6 +15,7 @@ class NavDest {
 const kNavDestinations = <NavDest>[
   NavDest('Dashboard', Icons.dashboard_outlined, '/dashboard'),
   NavDest('Generate', Icons.auto_awesome_outlined, '/generate'),
+  NavDest('PUC Paper', Icons.description_outlined, '/puc-paper'),
   NavDest('Question Bank', Icons.menu_book_outlined, '/bank'),
   NavDest('My Classes', Icons.groups_outlined, '/analytics/class'),
   NavDest('Exam Creator', Icons.edit_note_outlined, '/wizard/details'),
