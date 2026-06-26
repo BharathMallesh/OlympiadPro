@@ -87,6 +87,33 @@ class _EditQuestionScreenState extends State<EditQuestionScreen> {
     if (result != null && mounted) setState(() => q.images.add(result));
   }
 
+  /// Crop a figure out of the PDF THIS question was imported from (bank flow).
+  Future<void> _addFromSourcePdf() async {
+    if (q.id == null) return;
+    setState(() => _picking = true);
+    try {
+      final bytes = await Repo.questionSourcePdf(q.id!);
+      if (!mounted) return;
+      if (bytes == null) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content:
+                Text('This question has no source PDF (not imported from one).')));
+        return;
+      }
+      final result = await Navigator.of(context).push<Uint8List>(
+        MaterialPageRoute(builder: (_) => PdfFigurePicker(pdfBytes: bytes)),
+      );
+      if (result != null && mounted) setState(() => q.images.add(result));
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Could not load source PDF: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _picking = false);
+    }
+  }
+
   void _chooseSource() {
     showModalBottomSheet(
       context: context,
@@ -115,6 +142,19 @@ class _EditQuestionScreenState extends State<EditQuestionScreen> {
                 onTap: () {
                   Navigator.pop(ctx);
                   _addFromPdf();
+                },
+              ),
+            // Bank questions imported from a PDF: crop straight from that source.
+            if (!_creating && q.id != null)
+              ListTile(
+                leading: const Icon(Icons.content_cut, color: AppColors.primary),
+                title: const Text('Crop from the source PDF'),
+                subtitle: Text(
+                    'Crop a figure from the PDF this question was imported from',
+                    style: Theme.of(context).textTheme.bodySmall),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _addFromSourcePdf();
                 },
               ),
             ListTile(

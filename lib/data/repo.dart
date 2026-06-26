@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'api.dart';
 
 /// Typed wrappers over the backend API. All methods return decoded JSON
@@ -115,6 +117,11 @@ class Repo {
   /// Compare). Returns {source_text, prompt}; source_text may be null.
   static Future<Map<String, dynamic>> questionSource(String id) async =>
       (await api.get('/v1/questions/$id/source')) as Map<String, dynamic>;
+
+  /// The original PDF a question was imported from (for crop-a-figure). Null if
+  /// the question wasn't imported from a PDF.
+  static Future<Uint8List?> questionSourcePdf(String id) =>
+      api.getBytes('/v1/questions/$id/source-pdf');
 
   /// Ask Gemini for a fresh variant of a question; persists and returns it.
   static Future<Map<String, dynamic>> regenerateQuestion(String id) async =>
