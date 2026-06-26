@@ -34,6 +34,7 @@ import '../screens/student/my_exams_screen.dart';
 import '../screens/auth/forgot_password_screen.dart';
 import '../screens/bank/question_bank_screen.dart';
 import '../screens/wizard/generate_screen.dart';
+import '../screens/wizard/puc_paper_screen.dart';
 import '../screens/shared/notifications_screen.dart';
 import '../screens/shared/settings_screen.dart';
 import '../screens/dashboard/roster_screen.dart';
@@ -149,6 +150,7 @@ final router = GoRouter(
     GoRoute(path: '/forgot-password', pageBuilder: (c, s) => _page(const ForgotPasswordScreen(), s)),
     GoRoute(path: '/bank', pageBuilder: (c, s) => _page(const QuestionBankScreen(), s)),
     GoRoute(path: '/generate', pageBuilder: (c, s) => _page(const GenerateScreen(), s)),
+    GoRoute(path: '/puc-paper', pageBuilder: (c, s) => _page(const PucPaperScreen(), s)),
     GoRoute(
       path: '/notifications',
       pageBuilder: (c, s) => _page(

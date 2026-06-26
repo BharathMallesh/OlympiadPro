@@ -45,6 +45,10 @@ dependencies:
   flutter_secure_storage: ^9.2.4
   pdfx: ^2.6.0
   crop_your_image: ^2.0.0
+  # PUC paper export: render a print-ready PDF and open the system
+  # print / share sheet (covers Save-to-Files / download).
+  pdf: ^3.11.1
+  printing: ^5.13.3
 
 dev_dependencies:
   flutter_test:

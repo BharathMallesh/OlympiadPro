@@ -165,20 +165,63 @@ class Repo {
   }
 
   /// Generate a mix of questions for the chosen chapters into staging.
+  /// `styleReference` (from [analyzePaper]) makes the new questions mimic a
+  /// previous paper's wording and difficulty.
   static Future<Map<String, dynamic>> generateFromSyllabus(
     String syllabusId, {
     required List<String> chapterIds,
     int mcq = 0,
     int short = 0,
     int long = 0,
+    String? board,
+    String? styleReference,
   }) async {
     return (await api.post('/v1/syllabi/$syllabusId/generate', {
       'chapter_ids': chapterIds,
       'mcq': mcq,
       'short': short,
       'long': long,
+      if (board != null && board.isNotEmpty) 'board': board,
+      if (styleReference != null && styleReference.isNotEmpty)
+        'style_reference': styleReference,
     }, const Duration(seconds: 240))) as Map<String, dynamic>;
   }
+
+  /// Analyse a previous question paper PDF and return its format/blueprint:
+  /// { mcq, short, long, total_marks, difficulty, style_notes, sections[], topics[] }.
+  static Future<Map<String, dynamic>> analyzePaper(
+          List<int> bytes, String filename) async =>
+      (await api.upload('/v1/papers/analyze',
+          bytes: bytes,
+          filename: filename,
+          fields: const {},
+          timeout: const Duration(seconds: 180))) as Map<String, dynamic>;
+
+  /// Topics (syllabus chapters) for a class / curriculum / subject — powers the
+  /// PUC paper cascade. Each carries its chapter_id + syllabus_id.
+  static Future<List<dynamic>> syllabusTopics(
+      {String? classId, String? curriculum, String? subject}) async {
+    final q = <String, String>{};
+    if (classId != null && classId.isNotEmpty) q['class_id'] = classId;
+    if (curriculum != null && curriculum.isNotEmpty) q['curriculum'] = curriculum;
+    if (subject != null && subject.isNotEmpty) q['subject'] = subject;
+    final d = await api.get('/v1/syllabi/topics', query: q) as Map<String, dynamic>;
+    return (d['topics'] as List?) ?? const [];
+  }
+
+  /// Generate a fresh PUC paper from the textbook chapters per the blueprint.
+  /// Returns the full paper (sections + answer_key + shortfalls). Slow (AI).
+  static Future<Map<String, dynamic>> generatePaper(
+          Map<String, dynamic> body) async =>
+      (await api.post('/v1/papers/generate', body, const Duration(seconds: 280)))
+          as Map<String, dynamic>;
+
+  /// Submit a (possibly edited) paper's questions into the Question Bank so
+  /// students can take them. Returns { inserted: N }.
+  static Future<Map<String, dynamic>> submitPaper(
+          Map<String, dynamic> body) async =>
+      (await api.post('/v1/papers/submit', body, const Duration(seconds: 60)))
+          as Map<String, dynamic>;
 
   /// Generated questions awaiting review (`pending`) or history (`approved`).
   static Future<List<dynamic>> generatedQuestions({String status = 'pending'}) async =>
