@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 /// Central design tokens derived from the Vidyora / MathKraft
 /// "Academic Dark" design system.
@@ -71,7 +70,7 @@ class AppTheme {
 
     // Geist isn't on Google Fonts; Sora is a close geometric STEM stand-in.
     TextStyle head(double size, FontWeight w, {double? lh, double ls = -0.2}) =>
-        GoogleFonts.sora(
+        TextStyle(fontFamily: 'Sora', 
             fontSize: size,
             fontWeight: w,
             height: lh == null ? null : lh / size,
@@ -87,16 +86,16 @@ class AppTheme {
       headlineMedium: head(26, FontWeight.w600),
       headlineSmall: head(22, FontWeight.w600),
       titleLarge: head(20, FontWeight.w600, ls: 0),
-      titleMedium: GoogleFonts.inter(
+      titleMedium: TextStyle(fontFamily: 'Inter', 
           fontSize: 17,
           fontWeight: FontWeight.w600,
           color: AppColors.onSurface,
           height: 1.35),
-      bodyLarge: GoogleFonts.inter(
+      bodyLarge: TextStyle(fontFamily: 'Inter', 
           fontSize: 17, color: AppColors.onSurface, height: 1.55),
-      bodyMedium: GoogleFonts.inter(
+      bodyMedium: TextStyle(fontFamily: 'Inter', 
           fontSize: 15, color: AppColors.onSurfaceVariant, height: 1.55),
-      bodySmall: GoogleFonts.inter(
+      bodySmall: TextStyle(fontFamily: 'Inter', 
           fontSize: 13, color: AppColors.muted, height: 1.45),
       labelLarge: mono(14, FontWeight.w500),
       labelMedium: mono(12.5, FontWeight.w500),
@@ -129,7 +128,7 @@ class AppTheme {
   /// JetBrains Mono — labels, metadata, counters.
   static TextStyle mono(double size, FontWeight w,
           {Color? color, double ls = 0.5}) =>
-      GoogleFonts.jetBrainsMono(
+      TextStyle(fontFamily: 'JetBrainsMono', 
         fontSize: size,
         fontWeight: w,
         letterSpacing: ls,
