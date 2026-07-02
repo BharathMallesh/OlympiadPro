@@ -427,6 +427,13 @@ class Repo {
       (await api.get('/v1/student/practice/subjects${_scopeQuery(boards, curricula)}'))
           as List<dynamic>;
 
+  /// Smart Revision: an adaptive practice set weighted toward the student's
+  /// weakest chapters, scoped to their exam/curriculum.
+  static Future<Map<String, dynamic>> smartRevision(
+          {List<String> boards = const [], List<String> curricula = const []}) async =>
+      (await api.get('/v1/student/practice/smart${_scopeQuery(boards, curricula)}'))
+          as Map<String, dynamic>;
+
   /// Chapters/topics available for practice, scoped to the chosen exam/curriculum.
   static Future<List<dynamic>> practiceTopics(
           {List<String> boards = const [], List<String> curricula = const []}) async =>

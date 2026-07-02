@@ -31,12 +31,44 @@ class _StudentHubScreenState extends State<StudentHubScreen> {
     _loadFocus();
   }
 
+  bool _smartBusy = false;
+
   Future<void> _loadFocus() async {
     try {
       final boards = await Repo.studentBoards();
       if (!mounted) return;
       setState(() => _boards = boards);
     } catch (_) {/* leave empty; practice falls back to everything */}
+  }
+
+  /// Adaptive revision: pulls a set weighted to the student's weak topics and
+  /// drops them straight into a practice session.
+  Future<void> _smartRevision() async {
+    setState(() => _smartBusy = true);
+    try {
+      final exam = ExamScope.examOf(_boards);
+      final res = await Repo.smartRevision(
+        boards: exam != null ? [exam] : const [],
+        curricula: exam != null ? [ExamScope.curriculumFor(exam)] : const [],
+      );
+      final qs = (res['questions'] as List<dynamic>?) ?? const [];
+      if (!mounted) return;
+      setState(() => _smartBusy = false);
+      if (qs.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Not enough questions yet — try Generate Practice Set.'),
+            backgroundColor: AppColors.error));
+        return;
+      }
+      await context.push('/student/practice-session', extra: qs);
+      _loadActivity();
+    } catch (e) {
+      if (mounted) {
+        setState(() => _smartBusy = false);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(e.toString()), backgroundColor: AppColors.error));
+      }
+    }
   }
 
   Future<void> _loadNext() async {
@@ -283,6 +315,13 @@ class _StudentHubScreenState extends State<StudentHubScreen> {
                         // Refresh recent activity when returning from a session.
                         _loadActivity();
                       }),
+                  const SizedBox(height: 10),
+                  AppButton(
+                      _smartBusy ? 'Preparing…' : 'Smart Revision (weak topics)',
+                      expand: true,
+                      kind: AppBtnKind.ghost,
+                      trailingIcon: Icons.auto_awesome,
+                      onPressed: _smartBusy ? null : _smartRevision),
                   const SizedBox(height: 10),
                   AppButton('Previous Years (last 5)',
                       expand: true,
