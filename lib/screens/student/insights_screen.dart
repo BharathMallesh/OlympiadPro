@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../../app/theme.dart';
 import '../../data/repo.dart';
 import '../../widgets/common.dart';
@@ -80,8 +81,17 @@ class _InsightsScreenState extends State<InsightsScreen> {
                       const SizedBox(height: 16),
                       _boardCard(context),
                       const SizedBox(height: 16),
-                      _chaptersCard(context, 'Focus areas (weakest)',
-                          _list(_strengths['weakest']), AppColors.error),
+                      _chaptersCard(
+                        context,
+                        'Focus areas (weakest)',
+                        _list(_strengths['weakest']),
+                        AppColors.error,
+                        hint:
+                            'These are your lowest-scoring topics. Tap one to '
+                            'practise it and lift your score.',
+                        onTapRow: (r) => context.push(
+                            '/student/practice-generator?subject=${Uri.encodeComponent(r['subject']?.toString() ?? '')}'),
+                      ),
                       const SizedBox(height: 16),
                       _chaptersCard(context, 'Strengths', _list(_strengths['strongest']),
                           AppColors.teal),
@@ -187,11 +197,16 @@ class _InsightsScreenState extends State<InsightsScreen> {
       );
 
   Widget _chaptersCard(
-      BuildContext context, String title, List<Map<String, dynamic>> rows, Color color) {
+      BuildContext context, String title, List<Map<String, dynamic>> rows, Color color,
+      {String? hint, void Function(Map<String, dynamic>)? onTapRow}) {
     return AppCard(
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text(title.toUpperCase(),
             style: AppTheme.mono(10, FontWeight.w700, ls: 1)),
+        if (hint != null && rows.isNotEmpty) ...[
+          const SizedBox(height: 4),
+          Text(hint, style: Theme.of(context).textTheme.bodySmall),
+        ],
         const SizedBox(height: 6),
         if (rows.isEmpty)
           Padding(
@@ -201,23 +216,31 @@ class _InsightsScreenState extends State<InsightsScreen> {
           )
         else
           for (final r in rows)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 6),
-              child: Row(children: [
-                Expanded(
-                  child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('${r['chapter']}',
-                            style: Theme.of(context).textTheme.bodyLarge),
-                        Text('${r['subject']} · ${r['total']} attempted',
-                            style: AppTheme.mono(9, FontWeight.w500)),
-                      ]),
-                ),
-                Text('${(r['accuracy'] as num?)?.round() ?? 0}%',
-                    style: TextStyle(
-                        fontSize: 16, fontWeight: FontWeight.w800, color: color)),
-              ]),
+            InkWell(
+              onTap: onTapRow == null ? null : () => onTapRow(r),
+              borderRadius: BorderRadius.circular(AppRadius.sm),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Row(children: [
+                  Expanded(
+                    child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('${r['chapter']}',
+                              style: Theme.of(context).textTheme.bodyLarge),
+                          Text('${r['subject']} · ${r['total']} attempted',
+                              style: AppTheme.mono(9, FontWeight.w500)),
+                        ]),
+                  ),
+                  Text('${(r['accuracy'] as num?)?.round() ?? 0}%',
+                      style: TextStyle(
+                          fontSize: 16, fontWeight: FontWeight.w800, color: color)),
+                  if (onTapRow != null) ...[
+                    const SizedBox(width: 6),
+                    const Icon(Icons.chevron_right, size: 18, color: AppColors.muted),
+                  ],
+                ]),
+              ),
             ),
       ]),
     );
