@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../app/theme.dart';
@@ -19,6 +21,57 @@ class _PracticeSessionScreenState extends State<PracticeSessionScreen> {
   int _index = 0;
   bool _submitting = false;
   final Map<String, Set<int>> _selected = {};
+
+  // Per-question countdown (#5) and whole-session screen-time (#7/#11).
+  static const _perQuestionSeconds = 60;
+  Timer? _ticker;
+  int _remaining = _perQuestionSeconds;
+  final Stopwatch _watch = Stopwatch();
+
+  @override
+  void initState() {
+    super.initState();
+    _watch.start();
+    _startQuestionTimer();
+  }
+
+  @override
+  void dispose() {
+    _ticker?.cancel();
+    _watch.stop();
+    final secs = _watch.elapsed.inSeconds;
+    if (secs > 0) Repo.postActivity(secs); // best-effort screen-time log
+    super.dispose();
+  }
+
+  /// (Re)start the 60s clock for the current question; auto-advances at zero.
+  void _startQuestionTimer() {
+    _ticker?.cancel();
+    _remaining = _perQuestionSeconds;
+    _ticker = Timer.periodic(const Duration(seconds: 1), (t) {
+      if (!mounted) {
+        t.cancel();
+        return;
+      }
+      setState(() => _remaining--);
+      if (_remaining <= 0) _autoAdvance();
+    });
+  }
+
+  void _goTo(int index) {
+    setState(() => _index = index);
+    _startQuestionTimer();
+  }
+
+  void _autoAdvance() {
+    final total = widget.questions.length;
+    if (_index < total - 1) {
+      _goTo(_index + 1);
+    } else {
+      _ticker?.cancel();
+      if (!_submitting) _finish();
+    }
+  }
 
   Map<String, dynamic> get _q => widget.questions[_index] as Map<String, dynamic>;
   String get _qid => _q['question_id'] as String;
@@ -48,6 +101,7 @@ class _PracticeSessionScreenState extends State<PracticeSessionScreen> {
       );
       if (ok != true) return;
     }
+    _ticker?.cancel();
     setState(() => _submitting = true);
     try {
       final result = await Repo.practiceGrade([
@@ -102,6 +156,9 @@ class _PracticeSessionScreenState extends State<PracticeSessionScreen> {
           ],
         ),
         actions: [
+          StatusChip('${_remaining}s',
+              color: _remaining <= 10 ? AppColors.error : AppColors.muted),
+          const SizedBox(width: 8),
           StatusChip('${_index + 1} / $total', color: AppColors.teal),
           const SizedBox(width: 14),
         ],
@@ -148,7 +205,7 @@ class _PracticeSessionScreenState extends State<PracticeSessionScreen> {
               if (_index > 0)
                 Expanded(
                   child: AppButton('Previous', kind: AppBtnKind.ghost,
-                      onPressed: () => setState(() => _index--)),
+                      onPressed: () => _goTo(_index - 1)),
                 ),
               if (_index > 0) const SizedBox(width: 10),
               Expanded(
@@ -156,7 +213,7 @@ class _PracticeSessionScreenState extends State<PracticeSessionScreen> {
                 child: _index < total - 1
                     ? AppButton('Next',
                         trailingIcon: Icons.arrow_forward,
-                        onPressed: () => setState(() => _index++))
+                        onPressed: () => _goTo(_index + 1))
                     : AppButton(
                         _submitting ? 'Grading…' : 'Finish & Grade',
                         trailingIcon: Icons.check,

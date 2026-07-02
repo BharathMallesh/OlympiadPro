@@ -2,10 +2,13 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import '../../app/theme.dart';
+import '../../data/exam_scope.dart';
 import '../../data/repo.dart';
 import '../../widgets/app_shell.dart';
 import '../../widgets/common.dart';
 import '../../widgets/math_text.dart';
+import '../../models/models.dart';
+import 'edit_question_screen.dart';
 import 'puc_paper_screen.dart' show kSubjects;
 
 /// Validator / teacher workspace: upload a syllabus, generate questions from
@@ -105,8 +108,7 @@ class _GenerateScreenState extends State<GenerateScreen> {
     final yearCtrl = TextEditingController();
     String? classId;
     String? selSubject;
-    final boards = <String>{};
-    const boardOptions = ['JEE', 'NEET', 'CET', 'CBSE', 'State Board'];
+    String? exam;
     final result = await showDialog<(String, String?, List<String>, String?)>(
       context: context,
       builder: (ctx) => StatefulBuilder(
@@ -175,17 +177,16 @@ class _GenerateScreenState extends State<GenerateScreen> {
                 }).toList(),
               ),
               const SizedBox(height: 16),
-              const Text('Which exam board(s)? (optional — scopes student '
-                  'practice to those boards)'),
+              const Text('Which exam? (scopes to its syllabus — NEET/JEE→NCERT, '
+                  'CET→State Board, PUC→PUC)'),
               const SizedBox(height: 8),
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
-                children: boardOptions.map((b) {
-                  final sel = boards.contains(b);
+                children: ExamScope.exams.map((b) {
+                  final sel = exam == b;
                   return InkWell(
-                    onTap: () => setLocal(
-                        () => sel ? boards.remove(b) : boards.add(b)),
+                    onTap: () => setLocal(() => exam = sel ? null : b),
                     borderRadius: BorderRadius.circular(AppRadius.pill),
                     child: Container(
                       padding: const EdgeInsets.symmetric(
@@ -208,6 +209,12 @@ class _GenerateScreenState extends State<GenerateScreen> {
                   );
                 }).toList(),
               ),
+              if (exam != null) ...[
+                const SizedBox(height: 8),
+                Text('${exam!} · ${ExamScope.curriculumFor(exam!)} syllabus',
+                    style: AppTheme.mono(11, FontWeight.w700,
+                        color: AppColors.teal)),
+              ],
             ],
           ),
           ),
@@ -222,8 +229,12 @@ class _GenerateScreenState extends State<GenerateScreen> {
                     _toast('Pick a subject', error: true);
                     return;
                   }
-                  Navigator.pop(ctx,
-                      (s, classId, boards.toList(), yearCtrl.text.trim()));
+                  Navigator.pop(ctx, (
+                    s,
+                    classId,
+                    exam == null ? <String>[] : [exam!],
+                    yearCtrl.text.trim()
+                  ));
                 },
                 child: const Text('Choose PDF')),
           ],
@@ -255,7 +266,12 @@ class _GenerateScreenState extends State<GenerateScreen> {
         _toast(
             'Uploading "${file.name}" (${done + 1}/${files.length}) — extracting chapters…');
         await Repo.uploadSyllabus(file.bytes!, file.name, subject,
-            classId: classId2, boards: boards2, academicYear: year2);
+            classId: classId2,
+            boards: boards2,
+            curriculum: boards2.isEmpty
+                ? null
+                : ExamScope.curriculumFor(boards2.first),
+            academicYear: year2);
         done++;
       }
       await _load();
@@ -1003,6 +1019,22 @@ class _GenerateScreenState extends State<GenerateScreen> {
     ];
   }
 
+  /// Edit a review item using the SAME screen as the Question Bank. A pending
+  /// generated question is tagged with `generatedId` so the edit screen saves
+  /// it via the generated endpoint; bank items keep their `id`.
+  Future<void> _editReviewItem(Map<String, dynamic> q) async {
+    final isBank = q['_source'] == 'bank';
+    final qi = QuestionItem.fromApi(q, 0);
+    if (!isBank) {
+      qi.generatedId = q['id'] as String?;
+      qi.id = null; // not a bank id — route the save to the generated endpoint
+    }
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => EditQuestionScreen(item: qi)),
+    );
+    if (mounted) await _load(); // reflect the edit in the review list
+  }
+
   Widget _reviewCard(Map<String, dynamic> q) {
     final id = q['id'] as String;
     final isBank = q['_source'] == 'bank';
@@ -1217,6 +1249,13 @@ class _GenerateScreenState extends State<GenerateScreen> {
               ),
             ],
             const SizedBox(height: 12),
+            // Full edit (like the Question Bank's edit) — prompt, options, etc.
+            AppButton('Edit',
+                icon: Icons.edit_outlined,
+                kind: AppBtnKind.ghost,
+                expand: true,
+                onPressed: _busy ? null : () => _editReviewItem(q)),
+            const SizedBox(height: 10),
             if (isBank)
               AppButton('Save answer key',
                   icon: Icons.vpn_key,

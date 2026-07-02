@@ -153,6 +153,7 @@ class Repo {
           List<int> bytes, String filename, String subject,
           {String? classId,
           List<String> boards = const [],
+          String? curriculum,
           String? academicYear}) async =>
       (await api.upload('/v1/syllabi',
           bytes: bytes,
@@ -161,6 +162,8 @@ class Repo {
             'subject': subject,
             if (classId != null && classId.isNotEmpty) 'class_id': classId,
             if (boards.isNotEmpty) 'boards': boards.join(','),
+            if (curriculum != null && curriculum.isNotEmpty)
+              'curriculum': curriculum,
             if (academicYear != null && academicYear.isNotEmpty)
               'academic_year': academicYear,
           },
@@ -191,7 +194,7 @@ class Repo {
       if (board != null && board.isNotEmpty) 'board': board,
       if (styleReference != null && styleReference.isNotEmpty)
         'style_reference': styleReference,
-    }, const Duration(seconds: 240))) as Map<String, dynamic>;
+    }, const Duration(seconds: 420))) as Map<String, dynamic>;
   }
 
   /// Analyse a previous question paper PDF and return its format/blueprint:
@@ -220,7 +223,7 @@ class Repo {
   /// Returns the full paper (sections + answer_key + shortfalls). Slow (AI).
   static Future<Map<String, dynamic>> generatePaper(
           Map<String, dynamic> body) async =>
-      (await api.post('/v1/papers/generate', body, const Duration(seconds: 280)))
+      (await api.post('/v1/papers/generate', body, const Duration(seconds: 480)))
           as Map<String, dynamic>;
 
   /// Submit a (possibly edited) paper's questions into the Question Bank so
@@ -238,10 +241,21 @@ class Repo {
   /// Fix a pending generated question before approving (mark the correct
   /// option and/or edit the prompt).
   static Future<Map<String, dynamic>> editGenerated(String id,
-      {int? correct, String? prompt}) async {
+      {int? correct,
+      String? prompt,
+      List<dynamic>? options,
+      String? subject,
+      String? topic,
+      int? difficulty,
+      int? marks}) async {
     return (await api.put('/v1/chapters/generated/$id', {
       if (correct != null) 'correct': correct,
       if (prompt != null) 'prompt': prompt,
+      if (options != null) 'options': options,
+      if (subject != null) 'subject': subject,
+      if (topic != null) 'topic': topic,
+      if (difficulty != null) 'difficulty': difficulty,
+      if (marks != null) 'marks': marks,
     })) as Map<String, dynamic>;
   }
 
@@ -340,6 +354,26 @@ class Repo {
     })) as Map<String, dynamic>;
   }
 
+  /// The per-exam paper blueprints (JEE/NEET/CET/PUC).
+  static Future<List<dynamic>> examFormats() async =>
+      (await api.get('/v1/admin/exam-formats')) as List<dynamic>;
+
+  /// Build an exam paper from a stored format blueprint in one shot.
+  static Future<Map<String, dynamic>> examFromFormat({
+    required String exam,
+    required String title,
+    String? subject,
+    List<String> classIds = const [],
+    bool publish = false,
+  }) async =>
+      (await api.post('/v1/exams/from-format', {
+        'exam': exam,
+        'title': title,
+        if (subject != null && subject.trim().isNotEmpty) 'subject': subject.trim(),
+        'class_ids': classIds,
+        'publish': publish,
+      })) as Map<String, dynamic>;
+
   static Future<void> setExamQuestions(
       String examId, List<Map<String, dynamic>> items) async {
     await api.put('/v1/exams/$examId/questions', {'items': items});
@@ -379,12 +413,25 @@ class Repo {
 
   // ---- Student practice ----
 
-  static Future<List<dynamic>> practiceSubjects() async =>
-      (await api.get('/v1/student/practice/subjects')) as List<dynamic>;
+  static String _scopeQuery(List<String> boards, List<String> curricula) {
+    final qp = <String>[
+      if (boards.isNotEmpty) 'boards=${Uri.encodeComponent(boards.join(','))}',
+      if (curricula.isNotEmpty) 'curricula=${Uri.encodeComponent(curricula.join(','))}',
+    ];
+    return qp.isEmpty ? '' : '?${qp.join('&')}';
+  }
 
-  /// Topics (chapters) available for practice, each with its question count.
-  static Future<List<dynamic>> practiceTopics() async =>
-      (await api.get('/v1/student/practice/topics')) as List<dynamic>;
+  /// Subjects available for practice, scoped to the chosen exam/curriculum.
+  static Future<List<dynamic>> practiceSubjects(
+          {List<String> boards = const [], List<String> curricula = const []}) async =>
+      (await api.get('/v1/student/practice/subjects${_scopeQuery(boards, curricula)}'))
+          as List<dynamic>;
+
+  /// Chapters/topics available for practice, scoped to the chosen exam/curriculum.
+  static Future<List<dynamic>> practiceTopics(
+          {List<String> boards = const [], List<String> curricula = const []}) async =>
+      (await api.get('/v1/student/practice/topics${_scopeQuery(boards, curricula)}'))
+          as List<dynamic>;
 
   static Future<Map<String, dynamic>> practiceGenerate(
           List<Map<String, dynamic>> items,
@@ -396,10 +443,41 @@ class Repo {
         if (boards.isNotEmpty) 'boards': boards,
       })) as Map<String, dynamic>;
 
+  // ---- Previous-year questions (browse/reference) ----
+
+  static Future<List<dynamic>> pyqIndex() async =>
+      (await api.get('/v1/student/pyq/index')) as List<dynamic>;
+
+  static Future<List<dynamic>> pyqQuestions(
+          String board, int year, String subject, String chapter) async =>
+      (await api.get('/v1/student/pyq/questions'
+          '?board=${Uri.encodeComponent(board)}&year=$year'
+          '&subject=${Uri.encodeComponent(subject)}'
+          '&chapter=${Uri.encodeComponent(chapter)}')) as List<dynamic>;
+
   static Future<Map<String, dynamic>> practiceGrade(
           List<Map<String, dynamic>> answers) async =>
       (await api.post('/v1/student/practice/grade', {'answers': answers}))
           as Map<String, dynamic>;
+
+  /// Best-effort screen-time heartbeat (#7/#11). Never throws to the UI.
+  static Future<void> postActivity(int seconds) async {
+    try {
+      await api.post('/v1/student/practice/activity', {'seconds': seconds});
+    } catch (_) {/* screen-time logging is non-critical */}
+  }
+
+  /// Strength/weakness by chapter (#9).
+  static Future<Map<String, dynamic>> practiceStrengths() async =>
+      (await api.get('/v1/student/practice/strengths')) as Map<String, dynamic>;
+
+  /// Progress trend + rank (#10).
+  static Future<Map<String, dynamic>> practiceProgress() async =>
+      (await api.get('/v1/student/practice/progress')) as Map<String, dynamic>;
+
+  /// Per-board question counts in the student's pool (#1/#4).
+  static Future<List<dynamic>> boardBank() async =>
+      (await api.get('/v1/student/practice/board-bank')) as List<dynamic>;
 
   static Future<List<dynamic>> practiceHistory() async =>
       (await api.get('/v1/student/practice/history')) as List<dynamic>;

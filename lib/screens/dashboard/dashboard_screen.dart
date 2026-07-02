@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../app/theme.dart';
+import '../../data/exam_scope.dart';
 import '../../data/repo.dart';
 import '../../widgets/app_shell.dart';
 import '../../widgets/common.dart';
@@ -53,6 +54,115 @@ class _DashboardScreenState extends State<DashboardScreen> {
       });
       if (e.toString() == 'unauthorized' && mounted) context.go('/login');
     }
+  }
+
+  /// One-tap exam paper from a stored format blueprint (JEE/NEET/CET/PUC).
+  Future<void> _fromFormatDialog() async {
+    List<dynamic> classes = const [];
+    try {
+      classes = await Repo.classes();
+    } catch (_) {/* optional targeting */}
+    if (!mounted) return;
+    String exam = ExamScope.exams.first;
+    final titleCtrl = TextEditingController();
+    final subjectCtrl = TextEditingController();
+    final selClasses = <String>{};
+    bool busy = false;
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setLocal) => AlertDialog(
+          backgroundColor: AppColors.surface,
+          title: const Text('Generate paper from format'),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: SingleChildScrollView(
+              child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Exam'),
+                DropdownButton<String>(
+                  value: exam,
+                  isExpanded: true,
+                  items: ExamScope.exams
+                      .map((e) => DropdownMenuItem(
+                          value: e,
+                          child: Text('$e · ${ExamScope.curriculumFor(e)}')))
+                      .toList(),
+                  onChanged: (v) => setLocal(() => exam = v ?? exam),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                    controller: titleCtrl,
+                    decoration: const InputDecoration(
+                        labelText: 'Title', hintText: 'e.g. JEE Mock 1', isDense: true)),
+                const SizedBox(height: 8),
+                TextField(
+                    controller: subjectCtrl,
+                    decoration: const InputDecoration(
+                        labelText: 'Subject (PUC only, optional)', isDense: true)),
+                if (classes.isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  const Text('Assign to classes (optional)'),
+                  for (final c in classes)
+                    Row(children: [
+                      Expanded(child: Text(c['name']?.toString() ?? 'Class')),
+                      Checkbox(
+                        value: selClasses.contains((c as Map)['id']),
+                        onChanged: (v) => setLocal(() => v == true
+                            ? selClasses.add(c['id'] as String)
+                            : selClasses.remove(c['id'])),
+                      ),
+                    ]),
+                ],
+                const SizedBox(height: 8),
+                Text(
+                    "You'll preview the questions with the answer key before "
+                    'publishing.',
+                    style: Theme.of(context).textTheme.bodySmall),
+              ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+                onPressed: busy ? null : () => Navigator.pop(ctx),
+                child: const Text('Cancel')),
+            TextButton(
+              onPressed: busy
+                  ? null
+                  : () async {
+                      setLocal(() => busy = true);
+                      try {
+                        final r = await Repo.examFromFormat(
+                          exam: exam,
+                          title: titleCtrl.text.trim().isEmpty
+                              ? '$exam Paper'
+                              : titleCtrl.text.trim(),
+                          subject: subjectCtrl.text,
+                          classIds: selClasses.toList(),
+                          publish: false, // draft → preview → publish
+                        );
+                        if (ctx.mounted) Navigator.pop(ctx);
+                        if (mounted) {
+                          context.push('/exam-preview/${r['exam_id']}');
+                        }
+                      } catch (e) {
+                        setLocal(() => busy = false);
+                        if (ctx.mounted) {
+                          ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
+                              content: Text(e.toString()),
+                              backgroundColor: AppColors.error));
+                        }
+                      }
+                    },
+              child: Text(busy ? 'Generating…' : 'Generate'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -142,13 +252,24 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 style:
                                     Theme.of(context).textTheme.headlineSmall),
                             const Spacer(),
-                            TextButton(
-                                onPressed: () =>
-                                    context.push('/wizard/topic-exam'),
-                                child: const Text('+ Topic Exam')),
-                            TextButton(
-                                onPressed: () => context.go('/wizard/details'),
-                                child: const Text('+ New Exam')),
+                            Flexible(
+                              child: Wrap(
+                                alignment: WrapAlignment.end,
+                                children: [
+                                  TextButton(
+                                      onPressed: _fromFormatDialog,
+                                      child: const Text('+ Format')),
+                                  TextButton(
+                                      onPressed: () =>
+                                          context.push('/wizard/topic-exam'),
+                                      child: const Text('+ Topic Exam')),
+                                  TextButton(
+                                      onPressed: () =>
+                                          context.go('/wizard/details'),
+                                      child: const Text('+ New Exam')),
+                                ],
+                              ),
+                            ),
                           ]),
                           const SizedBox(height: 12),
                           if (_exams.isEmpty)

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../app/theme.dart';
 import '../../data/api.dart';
+import '../../data/exam_scope.dart';
 import '../../data/repo.dart';
 import '../../widgets/common.dart';
 import 'student_shell.dart';
@@ -18,11 +19,6 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
   int? _avgPct;
   bool _loading = true;
   List<String> _boards = [];
-  static const _boardOptions = ['JEE', 'NEET', 'CET', 'CBSE', 'State Board'];
-  List<String> _curricula = [];
-  static const _curriculumOptions = [
-    'NCERT', 'CBSE', 'State Board', 'ICSE', 'IB', 'Other'
-  ];
 
   @override
   void initState() {
@@ -30,29 +26,17 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
     _load();
   }
 
-  Future<void> _toggleBoard(String b) async {
-    final next = List<String>.from(_boards);
-    next.contains(b) ? next.remove(b) : next.add(b);
-    setState(() => _boards = next);
+  /// Pick ONE exam; its curriculum follows the rule (NEET/JEE→NCERT, CET→State
+  /// Board) and both are saved together, so the profile can never hold a
+  /// contradictory board/curriculum pair.
+  Future<void> _selectExam(String exam) async {
+    final boards = [exam];
+    final curricula = [ExamScope.curriculumFor(exam)];
+    setState(() => _boards = boards);
     try {
-      final saved = await Repo.setStudentBoards(next);
-      if (mounted) setState(() => _boards = saved);
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text('Could not save: $e'),
-            backgroundColor: AppColors.error));
-      }
-    }
-  }
-
-  Future<void> _toggleCurriculum(String c) async {
-    final next = List<String>.from(_curricula);
-    next.contains(c) ? next.remove(c) : next.add(c);
-    setState(() => _curricula = next);
-    try {
-      final saved = await Repo.setStudentCurricula(next);
-      if (mounted) setState(() => _curricula = saved);
+      final sb = await Repo.setStudentBoards(boards);
+      await Repo.setStudentCurricula(curricula);
+      if (mounted) setState(() => _boards = sb);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -65,7 +49,6 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
   Future<void> _load() async {
     try {
       _boards = await Repo.studentBoards();
-      _curricula = await Repo.studentCurricula();
       final exams = await Repo.studentExams();
       var sum = 0.0;
       var graded = 0;
@@ -142,94 +125,66 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
                       valueColor: AppColors.teal)),
             ]),
             const SizedBox(height: 20),
-            const StudentSection('Target Exam Boards', icon: Icons.flag_outlined),
+            const StudentSection('Target Exam', icon: Icons.flag_outlined),
             AppCard(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                      'Pick the exams you’re preparing for — your AI practice is '
-                      'tailored to these (plus general questions).',
+                      'Pick the exam you’re preparing for. NEET & JEE follow the '
+                      'NCERT syllabus; CET follows the State Board syllabus — your '
+                      'practice is scoped accordingly.',
                       style: Theme.of(context).textTheme.bodySmall),
                   const SizedBox(height: 12),
                   Wrap(
                     spacing: 8,
                     runSpacing: 8,
                     children: [
-                      for (final b in _boardOptions)
-                        InkWell(
-                          onTap: _loading ? null : () => _toggleBoard(b),
-                          borderRadius: BorderRadius.circular(AppRadius.pill),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 16, vertical: 9),
-                            decoration: BoxDecoration(
-                              color: _boards.contains(b)
-                                  ? AppColors.teal
-                                  : AppColors.surfaceContainer,
-                              borderRadius: BorderRadius.circular(AppRadius.pill),
-                              border: Border.all(
-                                  color: _boards.contains(b)
-                                      ? AppColors.teal
-                                      : AppColors.outlineStrong),
+                      for (final e in ExamScope.exams)
+                        Builder(builder: (_) {
+                          final sel = ExamScope.examOf(_boards) == e;
+                          return InkWell(
+                            onTap: _loading ? null : () => _selectExam(e),
+                            borderRadius: BorderRadius.circular(AppRadius.pill),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 16, vertical: 9),
+                              decoration: BoxDecoration(
+                                color: sel
+                                    ? AppColors.teal
+                                    : AppColors.surfaceContainer,
+                                borderRadius:
+                                    BorderRadius.circular(AppRadius.pill),
+                                border: Border.all(
+                                    color: sel
+                                        ? AppColors.teal
+                                        : AppColors.outlineStrong),
+                              ),
+                              child: Text(e,
+                                  style: TextStyle(
+                                      color: sel
+                                          ? AppColors.onPrimary
+                                          : AppColors.onSurface,
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 13)),
                             ),
-                            child: Text(b,
-                                style: TextStyle(
-                                    color: _boards.contains(b)
-                                        ? AppColors.onPrimary
-                                        : AppColors.onSurface,
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 13)),
-                          ),
-                        ),
+                          );
+                        }),
                     ],
                   ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 20),
-            const StudentSection('Curriculum / Syllabus', icon: Icons.menu_book_outlined),
-            AppCard(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                      'Pick the curriculum you follow — your AI practice is '
-                      'scoped to these (plus general questions).',
-                      style: Theme.of(context).textTheme.bodySmall),
-                  const SizedBox(height: 12),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      for (final c in _curriculumOptions)
-                        InkWell(
-                          onTap: _loading ? null : () => _toggleCurriculum(c),
-                          borderRadius: BorderRadius.circular(AppRadius.pill),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 16, vertical: 9),
-                            decoration: BoxDecoration(
-                              color: _curricula.contains(c)
-                                  ? AppColors.primary
-                                  : AppColors.surfaceContainer,
-                              borderRadius: BorderRadius.circular(AppRadius.pill),
-                              border: Border.all(
-                                  color: _curricula.contains(c)
-                                      ? AppColors.primary
-                                      : AppColors.outlineStrong),
-                            ),
-                            child: Text(c,
-                                style: TextStyle(
-                                    color: _curricula.contains(c)
-                                        ? AppColors.onPrimary
-                                        : AppColors.onSurface,
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 13)),
-                          ),
-                        ),
-                    ],
-                  ),
+                  if (ExamScope.examOf(_boards) != null) ...[
+                    const SizedBox(height: 12),
+                    Row(children: [
+                      const Icon(Icons.menu_book_outlined,
+                          size: 15, color: AppColors.primary),
+                      const SizedBox(width: 6),
+                      Text(
+                          '${ExamScope.examOf(_boards)} · '
+                          '${ExamScope.curriculumFor(ExamScope.examOf(_boards)!)} syllabus',
+                          style: AppTheme.mono(12, FontWeight.w700,
+                              color: AppColors.onSurface)),
+                    ]),
+                  ],
                 ],
               ),
             ),

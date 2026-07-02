@@ -9,13 +9,11 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 
 import '../../app/theme.dart';
+import '../../data/exam_scope.dart';
 import '../../data/repo.dart';
 import '../../widgets/app_shell.dart';
 import '../../widgets/common.dart';
 import '../../widgets/math_text.dart';
-
-const _curricula = ['NCERT', 'CBSE', 'State Board', 'ICSE', 'IB', 'Other'];
-const _boards = ['JEE', 'NEET', 'CET', 'CBSE', 'State Board'];
 // Canonical subjects (kept on top); shared with the upload picker.
 const kSubjects = ['Maths', 'Physics', 'Chemistry', 'Biology'];
 
@@ -323,18 +321,29 @@ class _PucPaperScreenState extends State<PucPaperScreen> {
             ),
             const SizedBox(height: 12),
             _dropdown<String>(
-              label: 'Curriculum',
-              value: _selCurriculum,
+              label: 'Exam (sets the syllabus)',
+              value: _board,
               items: [
                 const DropdownMenuItem(value: null, child: Text('Any')),
-                ..._curricula.map(
-                    (c) => DropdownMenuItem(value: c, child: Text(c))),
+                ...ExamScope.exams.map(
+                    (e) => DropdownMenuItem(value: e, child: Text(e))),
               ],
               onChanged: (v) {
-                setState(() => _selCurriculum = v);
+                setState(() {
+                  _board = v;
+                  _selCurriculum = v == null ? null : ExamScope.curriculumFor(v);
+                });
                 _loadTopics();
               },
             ),
+            if (_board != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Text(
+                    '$_board · ${ExamScope.curriculumFor(_board!)} syllabus',
+                    style: AppTheme.mono(11, FontWeight.w700,
+                        color: AppColors.teal)),
+              ),
             const SizedBox(height: 12),
             _dropdown<String>(
               label: 'Subject',
@@ -417,37 +426,6 @@ class _PucPaperScreenState extends State<PucPaperScreen> {
                   _stepBtn(Icons.add, () => setState(() => s.count++)),
                 ]),
               ),
-            const Divider(height: 22),
-            Text('EXAM FORMAT (optional)',
-                style: AppTheme.mono(11, FontWeight.w600,
-                    color: AppColors.muted, ls: 1.2)),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: _boards.map((b) {
-                final on = _board == b;
-                return InkWell(
-                  onTap: () => setState(() => _board = on ? null : b),
-                  borderRadius: BorderRadius.circular(AppRadius.pill),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 13, vertical: 7),
-                    decoration: BoxDecoration(
-                      color: on ? AppColors.teal : AppColors.surfaceContainer,
-                      borderRadius: BorderRadius.circular(AppRadius.pill),
-                      border: Border.all(
-                          color: on ? AppColors.teal : AppColors.outlineStrong),
-                    ),
-                    child: Text(b,
-                        style: TextStyle(
-                            color: on ? AppColors.onPrimary : AppColors.onSurface,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 13)),
-                  ),
-                );
-              }).toList(),
-            ),
             const SizedBox(height: 16),
             AppButton(_busy ? 'Generating from textbook…' : 'Generate paper',
                 icon: Icons.auto_awesome,

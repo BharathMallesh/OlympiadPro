@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../app/theme.dart';
+import '../../data/exam_scope.dart';
 import '../../data/stores.dart';
 import '../../widgets/common.dart';
 import 'wizard_shell.dart';
@@ -12,8 +13,6 @@ class ExamDetailsScreen extends StatefulWidget {
 }
 
 class _ExamDetailsScreenState extends State<ExamDetailsScreen> {
-  static const _categories = ['JEE', 'NEET', 'PG CET', 'CBSE', 'State Board', 'Add Other'];
-
   final TextEditingController _title =
       TextEditingController(text: examDraft.title);
   final TextEditingController _description =
@@ -66,24 +65,32 @@ class _ExamDetailsScreenState extends State<ExamDetailsScreen> {
             Text('Ensure titles are descriptive for student dashboards.',
                 style: Theme.of(context).textTheme.bodySmall),
             const SizedBox(height: 18),
-            const FieldLabel('Exam Category / Board'),
+            const FieldLabel('Target Exam'),
             LayoutBuilder(builder: (context, c) {
-              final cols = c.maxWidth >= 560 ? 3 : 2;
+              final cols = c.maxWidth >= 560 ? 4 : 2;
               return GridView.count(
                 crossAxisCount: cols,
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
                 mainAxisSpacing: 10,
                 crossAxisSpacing: 10,
-                childAspectRatio: cols == 3 ? 3 : 3.4,
+                childAspectRatio: cols == 4 ? 2.6 : 3.4,
                 children: [
-                  for (final cat in _categories)
+                  for (final cat in ExamScope.exams)
                     SelectTile(cat,
-                        selected: examDraft.board == cat,
+                        selected: ExamScope.normalize(examDraft.board) == cat,
                         onTap: () => setState(() => examDraft.board = cat)),
                 ],
               );
             }),
+            const SizedBox(height: 8),
+            Text(
+                ExamScope.normalize(examDraft.board) == null
+                    ? 'NEET & JEE follow NCERT; CET & PUC follow the State Board / '
+                        'PUC syllabus.'
+                    : '${ExamScope.normalize(examDraft.board)} · '
+                        '${ExamScope.curriculumFor(examDraft.board)} syllabus',
+                style: AppTheme.mono(11, FontWeight.w600, color: AppColors.muted)),
             const SizedBox(height: 18),
             const FieldLabel('Exam Description'),
             AppInput(

@@ -46,6 +46,9 @@ class QuestionItem {
   int marks;
   String? subject;
   String? topic;
+  // When set, this is a PENDING generated (staging) question being reviewed —
+  // the edit screen saves it via the generated-question endpoint, not the bank.
+  String? generatedId;
 
   /// Backend `qtype` ↔ display label.
   static const _typeMap = {

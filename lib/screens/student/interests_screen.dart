@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../app/theme.dart';
+import '../../data/exam_scope.dart';
 import '../../widgets/common.dart';
 import '../../widgets/help_dialog.dart';
 
@@ -11,7 +12,7 @@ class AcademicInterestsScreen extends StatefulWidget {
 }
 
 class _AcademicInterestsScreenState extends State<AcademicInterestsScreen> {
-  final _exams = {'JEE': true, 'NEET': false, 'PG CET': false, 'CBSE': false, 'STATE BOARD': false, 'OTHER': false};
+  String _exam = 'JEE';
   final _subjects = {'Mathematics': true, 'Physics': true, 'Chemistry': false, 'Biology': false};
 
   static const _subjectIcons = {
@@ -98,19 +99,27 @@ class _AcademicInterestsScreenState extends State<AcademicInterestsScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const SectionTitle('Target Exams',
+                              const SectionTitle('Target Exam',
                                   icon: Icons.fact_check_outlined,
                                   color: AppColors.teal),
-                              const SizedBox(height: 16),
+                              const SizedBox(height: 8),
+                              Text(
+                                  'NEET & JEE follow the NCERT syllabus; CET '
+                                  'follows the State Board syllabus.',
+                                  style: Theme.of(context).textTheme.bodySmall),
+                              const SizedBox(height: 14),
                               Wrap(spacing: 10, runSpacing: 10, children: [
-                                for (final e in _exams.entries)
+                                for (final e in ExamScope.exams)
                                   _ExamChip(
-                                    label: e.key,
-                                    selected: e.value,
-                                    onTap: () =>
-                                        setState(() => _exams[e.key] = !e.value),
+                                    label: e,
+                                    selected: _exam == e,
+                                    onTap: () => setState(() => _exam = e),
                                   ),
                               ]),
+                              const SizedBox(height: 12),
+                              Text('$_exam · ${ExamScope.curriculumFor(_exam)} syllabus',
+                                  style: AppTheme.mono(11, FontWeight.w700,
+                                      color: AppColors.teal)),
                             ],
                           ),
                         ),

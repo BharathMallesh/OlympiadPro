@@ -30,6 +30,7 @@ class StudentShell extends StatelessWidget {
     ('Practice', Icons.psychology_outlined, '/student/practice-generator'),
     ('Exams', Icons.assignment_outlined, '/student/exams'),
     ('Profile', Icons.person_outline, '/student/profile'),
+    ('Insights', Icons.insights_outlined, '/student/insights'),
   ];
 
   @override

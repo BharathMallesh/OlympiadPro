@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../app/theme.dart';
 import '../../data/api.dart';
+import '../../data/exam_scope.dart';
 import '../../data/repo.dart';
 import '../../widgets/charts.dart';
 import '../../widgets/common.dart';
@@ -14,13 +15,9 @@ class StudentHubScreen extends StatefulWidget {
 }
 
 class _StudentHubScreenState extends State<StudentHubScreen> {
-  // Exam focus for AI practice: the student's profile curricula + boards are the
-  // options; they pick which to practise for here, then choose subjects on the
-  // next screen.
-  List<String> _curricula = const [];
+  // Exam focus for AI practice: the student's profile exam (→ syllabus) is shown
+  // here; they choose subjects/chapters/topics on the next screen.
   List<String> _boards = const [];
-  final Set<String> _selCurr = {};
-  final Set<String> _selBoard = {};
   Map<String, dynamic>? _nextExam;
   bool _loadingExam = true;
   List<dynamic> _activity = [];
@@ -36,19 +33,9 @@ class _StudentHubScreenState extends State<StudentHubScreen> {
 
   Future<void> _loadFocus() async {
     try {
-      final curricula = await Repo.studentCurricula();
       final boards = await Repo.studentBoards();
       if (!mounted) return;
-      setState(() {
-        _curricula = curricula;
-        _boards = boards;
-        _selCurr
-          ..clear()
-          ..addAll(curricula);
-        _selBoard
-          ..clear()
-          ..addAll(boards);
-      });
+      setState(() => _boards = boards);
     } catch (_) {/* leave empty; practice falls back to everything */}
   }
 
@@ -250,66 +237,59 @@ class _StudentHubScreenState extends State<StudentHubScreen> {
                       'history.',
                       style: Theme.of(context).textTheme.bodyMedium),
                   const SizedBox(height: 18),
-                  if (_curricula.isEmpty && _boards.isEmpty)
+                  if (ExamScope.examOf(_boards) == null)
                     Text(
-                        'Set your exam boards & curriculum in Profile to focus '
-                        'your practice — for now it draws from everything.',
+                        'Set your target exam in Profile to focus your practice — '
+                        'for now it draws from everything.',
                         style: AppTheme.mono(10.5, FontWeight.w500,
                             color: AppColors.muted))
-                  else ...[
-                    if (_boards.isNotEmpty) ...[
-                      Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        SizedBox(
-                            width: 92,
-                            child: Text('EXAM BOARD:',
-                                style: AppTheme.mono(10, FontWeight.w600))),
+                  else
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: AppColors.surfaceContainer,
+                        borderRadius: BorderRadius.circular(AppRadius.md),
+                        border: Border.all(color: AppColors.outline),
+                      ),
+                      child: Row(children: [
+                        const Icon(Icons.menu_book_outlined,
+                            size: 16, color: AppColors.primary),
+                        const SizedBox(width: 8),
                         Expanded(
-                          child: Wrap(spacing: 8, runSpacing: 8, children: [
-                            for (final b in _boards)
-                              _MiniChip(b, _selBoard.contains(b),
-                                  () => setState(() => _selBoard.contains(b)
-                                      ? _selBoard.remove(b)
-                                      : _selBoard.add(b)),
-                                  color: AppColors.teal),
-                          ]),
+                          child: Text(
+                              'Preparing for ${ExamScope.examOf(_boards)}  ·  '
+                              '${ExamScope.curriculumFor(ExamScope.examOf(_boards)!)} syllabus',
+                              style: AppTheme.mono(12, FontWeight.w700,
+                                  color: AppColors.onSurface)),
                         ),
                       ]),
-                      const SizedBox(height: 12),
-                    ],
-                    if (_curricula.isNotEmpty)
-                      Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        SizedBox(
-                            width: 92,
-                            child: Text('CURRICULUM:',
-                                style: AppTheme.mono(10, FontWeight.w600))),
-                        Expanded(
-                          child: Wrap(spacing: 8, runSpacing: 8, children: [
-                            for (final c in _curricula)
-                              _MiniChip(c, _selCurr.contains(c),
-                                  () => setState(() => _selCurr.contains(c)
-                                      ? _selCurr.remove(c)
-                                      : _selCurr.add(c))),
-                          ]),
-                        ),
-                      ]),
-                  ],
+                    ),
                   const SizedBox(height: 18),
                   AppButton('Generate Practice Set',
                       expand: true,
                       onPressed: () async {
-                        // Carry the chosen exam focus to the next screen, where
-                        // the student picks subjects scoped to it.
+                        // Carry the profile's exam to the next screen, which
+                        // scopes subjects/chapters/topics to its syllabus.
+                        final exam = ExamScope.examOf(_boards);
                         final qp = <String>[
-                          if (_selCurr.isNotEmpty)
-                            'curricula=${Uri.encodeComponent(_selCurr.join(","))}',
-                          if (_selBoard.isNotEmpty)
-                            'boards=${Uri.encodeComponent(_selBoard.join(","))}',
+                          if (exam != null) 'boards=$exam',
+                          if (exam != null)
+                            'curricula=${Uri.encodeComponent(ExamScope.curriculumFor(exam))}',
                         ];
                         final q = qp.isEmpty ? '' : '?${qp.join("&")}';
                         await context.push('/student/practice-generator$q');
                         // Refresh recent activity when returning from a session.
                         _loadActivity();
                       }),
+                  const SizedBox(height: 10),
+                  AppButton('Previous Years (last 5)',
+                      expand: true,
+                      kind: AppBtnKind.ghost,
+                      trailingIcon: Icons.history_edu_outlined,
+                      onPressed: () =>
+                          context.push('/student/previous-years')),
                   const SizedBox(height: 24),
                   if (!_loadingActivity && _activity.isNotEmpty) ...[
                     const SizedBox(height: 8),
@@ -453,30 +433,4 @@ class _StudentHubScreenState extends State<StudentHubScreen> {
       ),
     );
   }
-}
-
-class _MiniChip extends StatelessWidget {
-  const _MiniChip(this.label, this.selected, this.onTap,
-      {this.color = AppColors.primary});
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-  final Color color;
-  @override
-  Widget build(BuildContext context) => InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(AppRadius.sm),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-          decoration: BoxDecoration(
-            color: selected ? color.withValues(alpha: 0.2) : AppColors.scaffold,
-            borderRadius: BorderRadius.circular(AppRadius.sm),
-            border: Border.all(
-                color: selected ? color : AppColors.outlineStrong),
-          ),
-          child: Text(label,
-              style: AppTheme.mono(11, FontWeight.w600,
-                  color: selected ? color : AppColors.muted)),
-        ),
-      );
 }

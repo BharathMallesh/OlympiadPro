@@ -8,6 +8,7 @@ import '../screens/auth/institution_setup_screen.dart';
 import '../screens/auth/onboarding_finalize_screen.dart';
 import '../screens/dashboard/dashboard_screen.dart';
 import '../screens/wizard/exam_details_screen.dart';
+import '../screens/wizard/exam_preview_screen.dart';
 import '../screens/wizard/topic_exam_screen.dart';
 import '../screens/wizard/target_audience_screen.dart';
 import '../screens/wizard/upload_paper_screen.dart';
@@ -24,7 +25,9 @@ import '../screens/student/registration_screen.dart';
 import '../screens/student/interests_screen.dart';
 import '../screens/student/join_class_screen.dart';
 import '../screens/student/hub_screen.dart';
+import '../screens/student/insights_screen.dart';
 import '../screens/student/practice_generator_screen.dart';
+import '../screens/student/previous_years_screen.dart';
 import '../screens/student/practice_review_screen.dart';
 import '../screens/student/practice_session_screen.dart';
 import '../screens/student/exam_question_screen.dart';
@@ -66,6 +69,11 @@ final router = GoRouter(
     // Exam-creation wizard
     GoRoute(path: '/wizard/details', pageBuilder: (c, s) => _page(const ExamDetailsScreen(), s)),
     GoRoute(path: '/wizard/topic-exam', pageBuilder: (c, s) => _page(const TopicExamScreen(), s)),
+    GoRoute(
+      path: '/exam-preview/:id',
+      pageBuilder: (c, s) =>
+          _page(ExamPreviewScreen(examId: s.pathParameters['id']!), s),
+    ),
     GoRoute(path: '/wizard/audience', pageBuilder: (c, s) => _page(const TargetAudienceScreen(), s)),
     GoRoute(path: '/wizard/upload', pageBuilder: (c, s) => _page(const UploadPaperScreen(), s)),
     GoRoute(path: '/wizard/ai-review', pageBuilder: (c, s) => _page(const AiReviewScreen(), s)),
@@ -106,6 +114,10 @@ final router = GoRouter(
     GoRoute(path: '/student/interests', pageBuilder: (c, s) => _page(const AcademicInterestsScreen(), s)),
     GoRoute(path: '/student/join-class', pageBuilder: (c, s) => _page(const JoinClassScreen(), s)),
     GoRoute(path: '/student/hub', pageBuilder: (c, s) => _page(const StudentHubScreen(), s)),
+    GoRoute(path: '/student/insights', pageBuilder: (c, s) => _page(const InsightsScreen(), s)),
+    GoRoute(
+        path: '/student/previous-years',
+        pageBuilder: (c, s) => _page(const PreviousYearsScreen(), s)),
     GoRoute(
         path: '/student/practice-generator',
         pageBuilder: (c, s) {

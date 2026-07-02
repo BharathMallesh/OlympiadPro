@@ -10,13 +10,18 @@ import '../../widgets/math_text.dart';
 import 'pdf_figure_picker.dart';
 
 class EditQuestionScreen extends StatefulWidget {
-  const EditQuestionScreen({super.key, required this.index, this.returnTo});
+  const EditQuestionScreen(
+      {super.key, this.index = -1, this.returnTo, this.item});
 
   /// Index into the question store, or -1 to author a new question (#11).
   final int index;
 
   /// Route to fall back to when not pushed (e.g. '/bank').
   final String? returnTo;
+
+  /// Edit THIS item directly (the Review-tab flow) instead of store[index].
+  /// If its `generatedId` is set, the save targets the generated endpoint.
+  final QuestionItem? item;
 
   @override
   State<EditQuestionScreen> createState() => _EditQuestionScreenState();
@@ -36,8 +41,12 @@ class _EditQuestionScreenState extends State<EditQuestionScreen> {
   @override
   void initState() {
     super.initState();
-    _creating = widget.index < 0;
-    if (_creating) {
+    if (widget.item != null) {
+      // Review-tab flow: edit the passed-in item directly.
+      _creating = false;
+      q = widget.item!;
+    } else if (widget.index < 0) {
+      _creating = true;
       // New blank question; only added to the store on save.
       q = QuestionItem(
         label: 'Q${questionStore.questions.length + 1}',
@@ -47,6 +56,7 @@ class _EditQuestionScreenState extends State<EditQuestionScreen> {
         options: [QuestionOption(''), QuestionOption('')],
       );
     } else {
+      _creating = false;
       final i = widget.index.clamp(0, questionStore.questions.length - 1);
       q = questionStore.questions[i];
     }
@@ -194,23 +204,44 @@ class _EditQuestionScreenState extends State<EditQuestionScreen> {
     q.status = QStatus.parsed;
     q.warning = null;
     try {
-      if (q.id == null) {
-        final created = await Repo.createQuestion(q.toApi());
-        q.id = created['id'] as String;
+      if (q.generatedId != null) {
+        // Reviewing a pending generated question — save to the staging endpoint.
+        final correct = q.options.indexWhere((o) => o.correct);
+        await Repo.editGenerated(q.generatedId!,
+            prompt: q.prompt,
+            options:
+                q.options.map((o) => {'text': o.text, 'correct': o.correct}).toList(),
+            correct: correct >= 0 ? correct : null,
+            subject: q.subject,
+            topic: q.topic,
+            marks: q.marks);
+        while (q.images.isNotEmpty) {
+          final updated = await Repo.uploadGeneratedImage(
+              q.generatedId!, q.images.first, 'attachment.png');
+          q.imageUrls
+            ..clear()
+            ..addAll((updated['image_urls'] as List).cast<String>());
+          q.images.removeAt(0);
+        }
       } else {
-        await Repo.updateQuestion(q.id!, q.toApi());
+        if (q.id == null) {
+          final created = await Repo.createQuestion(q.toApi());
+          q.id = created['id'] as String;
+        } else {
+          await Repo.updateQuestion(q.id!, q.toApi());
+        }
+        // Push locally added images through the backend to Cloudinary.
+        while (q.images.isNotEmpty) {
+          final bytes = q.images.first;
+          final updated =
+              await Repo.uploadQuestionImage(q.id!, bytes, 'attachment.png');
+          q.imageUrls
+            ..clear()
+            ..addAll((updated['image_urls'] as List).cast<String>());
+          q.images.removeAt(0);
+        }
+        if (_creating) questionStore.questions.add(q);
       }
-      // Push locally added images through the backend to Cloudinary.
-      while (q.images.isNotEmpty) {
-        final bytes = q.images.first;
-        final updated =
-            await Repo.uploadQuestionImage(q.id!, bytes, 'attachment.png');
-        q.imageUrls
-          ..clear()
-          ..addAll((updated['image_urls'] as List).cast<String>());
-        q.images.removeAt(0);
-      }
-      if (_creating) questionStore.questions.add(q);
       questionStore.touch();
       if (mounted) popOrGo(context, _fallback);
     } catch (e) {
