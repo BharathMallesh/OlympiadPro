@@ -163,6 +163,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ),
       ),
     );
+    titleCtrl.dispose();
+    subjectCtrl.dispose();
   }
 
   @override

@@ -940,7 +940,7 @@ class _PucPaperScreenState extends State<PucPaperScreen> {
     required ValueChanged<T?> onChanged,
   }) {
     return DropdownButtonFormField<T>(
-      value: value,
+      initialValue: value,
       isExpanded: true,
       decoration: InputDecoration(labelText: label, isDense: true),
       items: items,

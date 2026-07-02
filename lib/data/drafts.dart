@@ -1,4 +1,5 @@
 /// Mutable drafts shared across multi-step flows (same pattern as ExamDraft).
+library;
 
 class OnboardingDraft {
   String fullName = '';

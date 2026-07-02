@@ -123,7 +123,7 @@ class _GenerateScreenState extends State<GenerateScreen> {
               const Text('Which subject is this syllabus for?'),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
-                value: selSubject,
+                initialValue: selSubject,
                 isExpanded: true,
                 decoration: const InputDecoration(
                     labelText: 'Subject', isDense: true),
@@ -758,7 +758,7 @@ class _GenerateScreenState extends State<GenerateScreen> {
             Row(children: [
               Expanded(
                 child: DropdownButtonFormField<String>(
-                  value: (_selCurriculum?.isNotEmpty ?? false) ? _selCurriculum : null,
+                  initialValue: (_selCurriculum?.isNotEmpty ?? false) ? _selCurriculum : null,
                   isExpanded: true,
                   decoration: const InputDecoration(
                       labelText: 'Curriculum', isDense: true),
@@ -776,7 +776,7 @@ class _GenerateScreenState extends State<GenerateScreen> {
               const SizedBox(width: 12),
               Expanded(
                 child: DropdownButtonFormField<String>(
-                  value: (_selSubject?.isNotEmpty ?? false) ? _selSubject : null,
+                  initialValue: (_selSubject?.isNotEmpty ?? false) ? _selSubject : null,
                   isExpanded: true,
                   decoration: const InputDecoration(
                       labelText: 'Subject', isDense: true),
@@ -1220,7 +1220,7 @@ class _GenerateScreenState extends State<GenerateScreen> {
                       child: Image.network(url,
                           height: 80,
                           fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => const SizedBox(
+                          errorBuilder: (_, _, _) => const SizedBox(
                               height: 80, width: 80,
                               child: Icon(Icons.broken_image_outlined,
                                   color: AppColors.muted))),

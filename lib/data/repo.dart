@@ -28,8 +28,8 @@ class Repo {
       'password': password,
       'full_name': fullName,
       'institution_name': institutionName,
-      if (board != null) 'board': board,
-      if (city != null) 'city': city,
+      'board': ?board,
+      'city': ?city,
     });
     await api.setSession(r['token'] as String, 'teacher');
     await _captureTeacherIdentity(r);
@@ -75,9 +75,9 @@ class Repo {
       {String? board, String? grade, String? section}) async {
     return (await api.post('/v1/classes', {
       'name': name,
-      if (board != null) 'board': board,
-      if (grade != null) 'grade': grade,
-      if (section != null) 'section': section,
+      'board': ?board,
+      'grade': ?grade,
+      'section': ?section,
     })) as Map<String, dynamic>;
   }
 
@@ -99,9 +99,9 @@ class Repo {
   static Future<List<dynamic>> questions(
       {String? subject, String? topic, String? status}) async {
     return (await api.get('/v1/questions', query: {
-      if (subject != null) 'subject': subject,
-      if (topic != null) 'topic': topic,
-      if (status != null) 'status': status,
+      'subject': ?subject,
+      'topic': ?topic,
+      'status': ?status,
     })) as List<dynamic>;
   }
 
@@ -249,13 +249,13 @@ class Repo {
       int? difficulty,
       int? marks}) async {
     return (await api.put('/v1/chapters/generated/$id', {
-      if (correct != null) 'correct': correct,
-      if (prompt != null) 'prompt': prompt,
-      if (options != null) 'options': options,
-      if (subject != null) 'subject': subject,
-      if (topic != null) 'topic': topic,
-      if (difficulty != null) 'difficulty': difficulty,
-      if (marks != null) 'marks': marks,
+      'correct': ?correct,
+      'prompt': ?prompt,
+      'options': ?options,
+      'subject': ?subject,
+      'topic': ?topic,
+      'difficulty': ?difficulty,
+      'marks': ?marks,
     })) as Map<String, dynamic>;
   }
 
@@ -318,10 +318,10 @@ class Repo {
     return (await api.post('/v1/exams', {
       'title': title,
       'board': board,
-      if (subtitle != null) 'subtitle': subtitle,
-      if (description != null) 'description': description,
-      if (format != null) 'format': format,
-      if (durationMin != null) 'duration_min': durationMin,
+      'subtitle': ?subtitle,
+      'description': ?description,
+      'format': ?format,
+      'duration_min': ?durationMin,
       if (scheduledFor != null)
         'scheduled_for': scheduledFor.toUtc().toIso8601String(),
     })) as Map<String, dynamic>;
@@ -346,8 +346,8 @@ class Repo {
   }) async {
     return (await api.post('/v1/exams/from-topics', {
       'title': title,
-      if (board != null) 'board': board,
-      if (durationMin != null) 'duration_min': durationMin,
+      'board': ?board,
+      'duration_min': ?durationMin,
       'class_ids': classIds,
       'items': items,
       'publish': publish,

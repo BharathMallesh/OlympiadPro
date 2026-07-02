@@ -29,6 +29,14 @@ class _ExamDetailsScreenState extends State<ExamDetailsScreen> {
     _duration.addListener(
         () => examDraft.duration = int.tryParse(_duration.text) ?? 90);
   }
+  @override
+  void dispose() {
+    _title.dispose();
+    _description.dispose();
+    _duration.dispose();
+    super.dispose();
+  }
+
 
   @override
   Widget build(BuildContext context) {

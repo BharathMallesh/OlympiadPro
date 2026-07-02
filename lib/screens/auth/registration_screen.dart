@@ -34,6 +34,15 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
       ..title = _title.text.trim();
     context.go('/register/institution');
   }
+  @override
+  void dispose() {
+    _name.dispose();
+    _email.dispose();
+    _password.dispose();
+    _title.dispose();
+    super.dispose();
+  }
+
 
   @override
   Widget build(BuildContext context) {

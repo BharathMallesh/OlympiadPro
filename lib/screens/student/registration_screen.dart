@@ -83,6 +83,15 @@ class _StudentRegistrationScreenState extends State<StudentRegistrationScreen> {
       if (mounted) setState(() => _busy = false);
     }
   }
+  @override
+  void dispose() {
+    _name.dispose();
+    _email.dispose();
+    _password.dispose();
+    _teacherCode.dispose();
+    super.dispose();
+  }
+
 
   @override
   Widget build(BuildContext context) {

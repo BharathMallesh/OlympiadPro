@@ -35,6 +35,15 @@ class _InstitutionSetupScreenState extends State<InstitutionSetupScreen> {
       ..section = _section.text.trim();
     context.go('/register/finalize');
   }
+  @override
+  void dispose() {
+    _institution.dispose();
+    _className.dispose();
+    _grade.dispose();
+    _section.dispose();
+    super.dispose();
+  }
+
 
   @override
   Widget build(BuildContext context) {

@@ -398,7 +398,7 @@ class _ExamQuestionScreenState extends State<ExamQuestionScreen> {
                       child: Image.network(url,
                           width: double.infinity,
                           fit: BoxFit.contain,
-                          errorBuilder: (_, __, ___) => const SizedBox()),
+                          errorBuilder: (_, _, _) => const SizedBox()),
                     ),
                   ],
                   const SizedBox(height: 20),
