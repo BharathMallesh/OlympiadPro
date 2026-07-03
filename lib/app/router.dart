@@ -104,7 +104,8 @@ final List<RouteBase> _studentRoutes = [
             PracticeGeneratorScreen(
                 initialSubject: s.uri.queryParameters['subject'],
                 initialCurricula: csv('curricula'),
-                initialBoards: csv('boards')),
+                initialBoards: csv('boards'),
+                pyq: s.uri.queryParameters['pyq'] == '1'),
             s);
       }),
   GoRoute(

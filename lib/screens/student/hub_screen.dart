@@ -120,6 +120,7 @@ class _StudentHubScreenState extends State<StudentHubScreen> {
     }
   }
 
+
   Future<void> _loadNext() async {
     try {
       final exams = await Repo.studentExams();
@@ -402,6 +403,16 @@ class _StudentHubScreenState extends State<StudentHubScreen> {
                       trailingIcon: Icons.history_edu_outlined,
                       onPressed: () =>
                           context.push('/student/previous-years')),
+                  const SizedBox(height: 10),
+                  AppButton('Previous Years Test (graded)',
+                      expand: true,
+                      kind: AppBtnKind.ghost,
+                      trailingIcon: Icons.fact_check_outlined,
+                      onPressed: () {
+                        final exam = ExamScope.examOf(_boards);
+                        context.push('/student/practice-generator?pyq=1'
+                            '${exam != null ? '&boards=$exam' : ''}');
+                      }),
                   const SizedBox(height: 24),
                   if (!_loadingActivity && _activity.isNotEmpty) ...[
                     const SizedBox(height: 8),

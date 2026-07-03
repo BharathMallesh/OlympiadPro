@@ -434,6 +434,7 @@ class Repo {
       (await api.get('/v1/student/practice/smart${_scopeQuery(boards, curricula)}'))
           as Map<String, dynamic>;
 
+
   // --- Push notifications ---------------------------------------------------
 
   /// Register this device's FCM token so the server can push notifications.
@@ -477,6 +478,7 @@ class Repo {
           '?board=${Uri.encodeComponent(board)}&year=$year'
           '&subject=${Uri.encodeComponent(subject)}'
           '&chapter=${Uri.encodeComponent(chapter)}')) as List<dynamic>;
+
 
   static Future<Map<String, dynamic>> practiceGrade(
           List<Map<String, dynamic>> answers) async =>

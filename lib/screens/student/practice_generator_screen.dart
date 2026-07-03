@@ -12,7 +12,11 @@ import 'student_shell.dart';
 /// quick exam on a topic they're weak in.
 class PracticeGeneratorScreen extends StatefulWidget {
   const PracticeGeneratorScreen(
-      {super.key, this.initialSubject, this.initialCurricula, this.initialBoards});
+      {super.key,
+      this.initialSubject,
+      this.initialCurricula,
+      this.initialBoards,
+      this.pyq = false});
 
   /// Subject chosen on the hub; if it has questions it's pre-selected here.
   final String? initialSubject;
@@ -21,6 +25,10 @@ class PracticeGeneratorScreen extends StatefulWidget {
   /// this practice set; null falls back to the student's saved profile.
   final List<String>? initialCurricula;
   final List<String>? initialBoards;
+
+  /// When true, this builds a PREVIOUS-YEARS test: the pool is scoped to the
+  /// 'PYQ' curriculum (real past-paper questions) instead of the exam syllabus.
+  final bool pyq;
 
   @override
   State<PracticeGeneratorScreen> createState() => _PracticeGeneratorScreenState();
@@ -43,6 +51,14 @@ class _PracticeGeneratorScreenState extends State<PracticeGeneratorScreen> {
   List<Map<String, dynamic>> _topics = const [];
   final Map<String, int> _topicCounts = {}; // "subjecttopic" -> count
   String _filter = '';
+  /// In the Chapter/Topic drill-down, focus on ONE subject at a time so the
+  /// student picks a subject first and only sees that subject's chapters/topics
+  /// (subject → chapter → topic), instead of one long mixed list.
+  String? _focusSubject;
+
+  List<String> get _subjectNames => [
+        for (final s in _subjects) (s['subject'] as String? ?? '')
+      ].where((e) => e.isNotEmpty).toList();
 
   // Curriculum + exam-board scope for this set — chosen on the hub (or the
   // student's profile as fallback). Shown read-only here; the picker lives on
@@ -102,9 +118,10 @@ class _PracticeGeneratorScreenState extends State<PracticeGeneratorScreen> {
       _topicsLoaded = false;
       _subjects = const [];
       _mode = 'subject';
+      _focusSubject = null;
       if (!wasSelected) {
         _boards.add(board);
-        _curricula.add(ExamScope.curriculumFor(board));
+        _curricula.add(widget.pyq ? 'PYQ' : ExamScope.curriculumFor(board));
       }
     });
     if (_boards.isNotEmpty) _reloadForScope();
@@ -311,11 +328,17 @@ class _PracticeGeneratorScreenState extends State<PracticeGeneratorScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text('Student Hub  /  AI Practice',
+                            Text(
+                                widget.pyq
+                                    ? 'Student Hub  /  Previous Years Test'
+                                    : 'Student Hub  /  AI Practice',
                                 style:
                                     AppTheme.mono(10, FontWeight.w500, ls: 0.5)),
                             const SizedBox(height: 8),
-                            Text('Build Your Practice Set',
+                            Text(
+                                widget.pyq
+                                    ? 'Build a Previous-Years Test'
+                                    : 'Build Your Practice Set',
                                 style:
                                     Theme.of(context).textTheme.headlineMedium),
                             const SizedBox(height: 6),
@@ -405,7 +428,16 @@ class _PracticeGeneratorScreenState extends State<PracticeGeneratorScreen> {
         child: InkWell(
           borderRadius: BorderRadius.circular(AppRadius.sm),
           onTap: () {
-            setState(() => _mode = value);
+            setState(() {
+              _mode = value;
+              // Default the drill-down to the first subject so the student
+              // starts narrowed to one subject, then picks chapter/topic.
+              if ((value == 'chapter' || value == 'topic') &&
+                  _focusSubject == null) {
+                _focusSubject =
+                    _subjectNames.isNotEmpty ? _subjectNames.first : null;
+              }
+            });
             if (value == 'chapter' || value == 'topic') _loadTopics();
           },
           child: Container(
@@ -439,6 +471,55 @@ class _PracticeGeneratorScreenState extends State<PracticeGeneratorScreen> {
       const SizedBox(width: 8),
       tab('topic', 'TOPIC', Icons.label_outline),
     ]);
+  }
+
+  /// Subject selector shown above the Chapter/Topic lists: pick a subject first,
+  /// then only that subject's chapters/topics are listed below.
+  Widget _subjectFilter(BuildContext context) {
+    final subs = _subjectNames;
+    if (subs.length < 2) return const SizedBox.shrink();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('SELECT SUBJECT',
+            style: AppTheme.mono(10, FontWeight.w700, ls: 1)),
+        const SizedBox(height: 8),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(children: [
+            for (final s in subs) ...[
+              _subjectFilterChip(s),
+              const SizedBox(width: 8),
+            ],
+          ]),
+        ),
+        const SizedBox(height: 16),
+      ],
+    );
+  }
+
+  Widget _subjectFilterChip(String subject) {
+    final sel = _focusSubject == subject;
+    return InkWell(
+      borderRadius: BorderRadius.circular(AppRadius.sm),
+      onTap: () => setState(() => _focusSubject = subject),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+        decoration: BoxDecoration(
+          color: sel ? AppColors.teal.withValues(alpha: 0.18) : Colors.transparent,
+          borderRadius: BorderRadius.circular(AppRadius.sm),
+          border: Border.all(color: sel ? AppColors.teal : AppColors.outline),
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(_subjectIcons[subject] ?? Icons.menu_book_outlined,
+              size: 14, color: sel ? AppColors.teal : AppColors.muted),
+          const SizedBox(width: 6),
+          Text(subject,
+              style: AppTheme.mono(11, FontWeight.w700,
+                  color: sel ? AppColors.teal : AppColors.muted)),
+        ]),
+      ),
+    );
   }
 
   // ---- Post-exam content (gated on an exam being selected) ----
@@ -523,7 +604,8 @@ class _PracticeGeneratorScreenState extends State<PracticeGeneratorScreen> {
         const Icon(Icons.menu_book_outlined, size: 16, color: AppColors.primary),
         const SizedBox(width: 8),
         Expanded(
-          child: Text('$exam  ·  $cur syllabus',
+          child: Text(
+              widget.pyq ? '$exam  ·  previous-year papers' : '$exam  ·  $cur syllabus',
               style: AppTheme.mono(12, FontWeight.w700, color: AppColors.onSurface),
               overflow: TextOverflow.ellipsis),
         ),
@@ -609,12 +691,15 @@ class _PracticeGeneratorScreenState extends State<PracticeGeneratorScreen> {
     final q = _filter.trim().toLowerCase();
     final shown = flat
         .where((t) =>
-            q.isEmpty ||
-            (t['topic'] as String).toLowerCase().contains(q) ||
-            (t['chapter'] as String).toLowerCase().contains(q) ||
-            (t['subject'] as String).toLowerCase().contains(q))
+            // Focused subject first, then the text search.
+            (_focusSubject == null || t['subject'] == _focusSubject) &&
+            (q.isEmpty ||
+                (t['topic'] as String).toLowerCase().contains(q) ||
+                (t['chapter'] as String).toLowerCase().contains(q) ||
+                (t['subject'] as String).toLowerCase().contains(q)))
         .toList();
     return [
+      _subjectFilter(context),
       TextField(
         onChanged: (v) => setState(() => _filter = v),
         style: Theme.of(context).textTheme.bodyMedium,
@@ -683,8 +768,13 @@ class _PracticeGeneratorScreenState extends State<PracticeGeneratorScreen> {
     if (_topics.isEmpty) {
       return [_emptyBank(context)];
     }
-    final grouped = _grouped;
+    // Only the focused subject's chapters (subject → chapter drill-down).
+    final grouped = {
+      for (final e in _grouped.entries)
+        if (_focusSubject == null || e.key == _focusSubject) e.key: e.value
+    };
     return [
+      _subjectFilter(context),
       TextField(
         onChanged: (v) => setState(() => _filter = v),
         style: Theme.of(context).textTheme.bodyMedium,
