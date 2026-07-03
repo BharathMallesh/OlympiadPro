@@ -3,7 +3,7 @@
          manifest, release builds have no internet access even though debug does. -->
     <uses-permission android:name="android.permission.INTERNET"/>
     <application
-        android:label="Vidyora"
+        android:label="${appLabel}"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

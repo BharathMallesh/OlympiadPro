@@ -33,6 +33,28 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        manifestPlaceholders["appLabel"] = "Vidyora"
+    }
+
+    // Three installable apps from one codebase — pair each with its Dart
+    // entrypoint, e.g. `flutter build apk --flavor student -t lib/main_student.dart`.
+    flavorDimensions += "app"
+    productFlavors {
+        create("student") {
+            dimension = "app"
+            applicationId = "tech.neokred.vidyora.student"
+            manifestPlaceholders["appLabel"] = "Vidyora"
+        }
+        create("teacher") {
+            dimension = "app"
+            applicationId = "tech.neokred.vidyora.educator"
+            manifestPlaceholders["appLabel"] = "Vidyora Educator"
+        }
+        create("admin") {
+            dimension = "app"
+            applicationId = "tech.neokred.vidyora.admin"
+            manifestPlaceholders["appLabel"] = "Vidyora Admin"
+        }
     }
 
     signingConfigs {

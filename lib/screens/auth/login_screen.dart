@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import '../../app/flavor.dart';
 import '../../app/theme.dart';
 import '../../data/repo.dart';
 import '../../widgets/common.dart';
@@ -14,7 +15,9 @@ class _LoginScreenState extends State<LoginScreen> {
   final _email = TextEditingController();
   final _password = TextEditingController();
   bool _obscure = true;
-  bool _isStudent = false;
+  // Each app is single-role: the flavor fixes whether this is the student or
+  // educator login. (The default lib/main.dart runs the educator flavor.)
+  final bool _isStudent = appFlavor.isStudent;
   bool _busy = false;
 
   Future<void> _signIn() async {
@@ -83,56 +86,6 @@ class _LoginScreenState extends State<LoginScreen> {
                 Text('EXCELLENCE IN ACADEMIC COMPETITION',
                     style: AppTheme.mono(11, FontWeight.w500, ls: 1.5)),
                 const SizedBox(height: 24),
-                // Role selector: educator vs student portal
-                Container(
-                  padding: const EdgeInsets.all(4),
-                  decoration: BoxDecoration(
-                    color: AppColors.surface,
-                    borderRadius: BorderRadius.circular(AppRadius.md),
-                    border: Border.all(color: AppColors.outline),
-                  ),
-                  child: Row(children: [
-                    for (final (label, icon, student) in const [
-                      ('Educator', Icons.co_present_outlined, false),
-                      ('Student', Icons.school_outlined, true),
-                    ])
-                      Expanded(
-                        child: InkWell(
-                          onTap: () => setState(() => _isStudent = student),
-                          borderRadius: BorderRadius.circular(AppRadius.sm),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(vertical: 10),
-                            decoration: BoxDecoration(
-                              color: _isStudent == student
-                                  ? (student
-                                      ? AppColors.tealStrong.withValues(alpha: 0.25)
-                                      : AppColors.primaryStrong.withValues(alpha: 0.25))
-                                  : null,
-                              borderRadius: BorderRadius.circular(AppRadius.sm),
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(icon, size: 16,
-                                    color: _isStudent == student
-                                        ? (student ? AppColors.teal : AppColors.primary)
-                                        : AppColors.muted),
-                                const SizedBox(width: 8),
-                                Text(label,
-                                    style: AppTheme.mono(12, FontWeight.w600,
-                                        color: _isStudent == student
-                                            ? (student
-                                                ? AppColors.teal
-                                                : AppColors.primary)
-                                            : AppColors.muted)),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                  ]),
-                ),
-                const SizedBox(height: 16),
                 AppCard(
                   accentTop: _isStudent ? AppColors.teal : AppColors.primary,
                   padding: const EdgeInsets.all(28),
