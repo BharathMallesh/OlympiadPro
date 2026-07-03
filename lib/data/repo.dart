@@ -434,6 +434,22 @@ class Repo {
       (await api.get('/v1/student/practice/smart${_scopeQuery(boards, curricula)}'))
           as Map<String, dynamic>;
 
+  // --- Push notifications ---------------------------------------------------
+
+  /// Register this device's FCM token so the server can push notifications.
+  static Future<void> registerPushToken(String token,
+          {String platform = 'android'}) async =>
+      api.post('/v1/student/push/register',
+          {'token': token, 'platform': platform});
+
+  /// The student's in-app notifications ({unread, items}). Works even before
+  /// FCM delivery is enabled — the server records an outbox row per event.
+  static Future<Map<String, dynamic>> notifications() async =>
+      (await api.get('/v1/student/notifications')) as Map<String, dynamic>;
+
+  static Future<void> markNotificationsRead() async =>
+      api.post('/v1/student/notifications/read', {});
+
   /// Chapters/topics available for practice, scoped to the chosen exam/curriculum.
   static Future<List<dynamic>> practiceTopics(
           {List<String> boards = const [], List<String> curricula = const []}) async =>

@@ -22,6 +22,8 @@ class _StudentHubScreenState extends State<StudentHubScreen> {
   bool _loadingExam = true;
   List<dynamic> _activity = [];
   bool _loadingActivity = true;
+  int _unread = 0;
+  List<dynamic> _notifs = const [];
 
   @override
   void initState() {
@@ -29,9 +31,56 @@ class _StudentHubScreenState extends State<StudentHubScreen> {
     _loadNext();
     _loadActivity();
     _loadFocus();
+    _loadNotifs();
   }
 
   bool _smartBusy = false;
+
+  Future<void> _loadNotifs() async {
+    try {
+      final res = await Repo.notifications();
+      if (!mounted) return;
+      setState(() {
+        _unread = (res['unread'] as num?)?.toInt() ?? 0;
+        _notifs = (res['items'] as List<dynamic>?) ?? const [];
+      });
+    } catch (_) {/* bell just stays empty */}
+  }
+
+  Future<void> _openNotifications() async {
+    // Show what we have, then clear the unread badge.
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (_) => SafeArea(
+        child: _notifs.isEmpty
+            ? const Padding(
+                padding: EdgeInsets.all(28),
+                child: Center(child: Text('No notifications yet')))
+            : ListView(
+                shrinkWrap: true,
+                children: [
+                  for (final n in _notifs)
+                    ListTile(
+                      leading: Icon(
+                          (n['read'] == true)
+                              ? Icons.notifications_none
+                              : Icons.notifications_active,
+                          color: (n['read'] == true)
+                              ? AppColors.muted
+                              : AppColors.primary),
+                      title: Text('${n['title'] ?? ''}'),
+                      subtitle: Text('${n['body'] ?? ''}'),
+                    ),
+                ],
+              ),
+      ),
+    );
+    try {
+      await Repo.markNotificationsRead();
+    } catch (_) {}
+    if (mounted) setState(() => _unread = 0);
+  }
 
   Future<void> _loadFocus() async {
     try {
@@ -126,6 +175,30 @@ class _StudentHubScreenState extends State<StudentHubScreen> {
                 child: Text('Hi, ${api.displayName ?? 'Student'}',
                     style: Theme.of(context).textTheme.headlineSmall),
               ),
+              // Notifications bell with an unread badge.
+              Stack(clipBehavior: Clip.none, children: [
+                IconButton(
+                  icon: const Icon(Icons.notifications_outlined),
+                  tooltip: 'Notifications',
+                  onPressed: _openNotifications,
+                ),
+                if (_unread > 0)
+                  Positioned(
+                    right: 6,
+                    top: 6,
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: const BoxDecoration(
+                          color: AppColors.error, shape: BoxShape.circle),
+                      constraints:
+                          const BoxConstraints(minWidth: 16, minHeight: 16),
+                      child: Text('$_unread',
+                          textAlign: TextAlign.center,
+                          style: AppTheme.mono(9, FontWeight.w700,
+                              color: Colors.white)),
+                    ),
+                  ),
+              ]),
               if ((api.displaySubtitle ?? '').isNotEmpty)
                 Container(
                   padding:

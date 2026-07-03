@@ -259,6 +259,28 @@ class _QuestionReviewCardState extends State<_QuestionReviewCard> {
           ),
           if (_expanded) ...[
             const SizedBox(height: 10),
+            // Stored answer key / worked solution — instant, no AI wait.
+            if (((d['solution'] as String?)?.trim() ?? '').isNotEmpty) ...[
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceContainer,
+                  borderRadius: BorderRadius.circular(AppRadius.md),
+                  border: const Border(
+                      left: BorderSide(color: AppColors.success, width: 3)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _label('SOLUTION', AppColors.success),
+                    const SizedBox(height: 6),
+                    MixedMathText((d['solution'] as String).trim(),
+                        fontSize: 14),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 10),
+            ],
             if (_loading)
               const Padding(
                 padding: EdgeInsets.all(12),
@@ -302,6 +324,7 @@ class _QuestionReviewCardState extends State<_QuestionReviewCard> {
       badge = Icons.cancel;
       badgeColor = AppColors.error;
     }
+    final why = (o['why'] as String?)?.trim() ?? '';
     return Container(
       margin: const EdgeInsets.only(bottom: 6),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -310,22 +333,35 @@ class _QuestionReviewCardState extends State<_QuestionReviewCard> {
         borderRadius: BorderRadius.circular(AppRadius.sm),
         border: Border.all(color: border),
       ),
-      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('$letter.',
-            style: AppTheme.mono(12, FontWeight.w700,
-                color: AppColors.onSurfaceVariant)),
-        const SizedBox(width: 8),
-        Expanded(
-            child: MixedMathText(o['text'] as String? ?? '', fontSize: 14)),
-        if (badge != null) ...[
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('$letter.',
+              style: AppTheme.mono(12, FontWeight.w700,
+                  color: AppColors.onSurfaceVariant)),
           const SizedBox(width: 8),
-          Icon(badge, size: 16, color: badgeColor),
-        ],
-        if (picked) ...[
-          const SizedBox(width: 6),
-          Text('YOU',
-              style: AppTheme.mono(8, FontWeight.w700,
-                  color: AppColors.onSurfaceVariant, ls: 0.5)),
+          Expanded(
+              child: MixedMathText(o['text'] as String? ?? '', fontSize: 14)),
+          if (badge != null) ...[
+            const SizedBox(width: 8),
+            Icon(badge, size: 16, color: badgeColor),
+          ],
+          if (picked) ...[
+            const SizedBox(width: 6),
+            Text('YOU',
+                style: AppTheme.mono(8, FontWeight.w700,
+                    color: AppColors.onSurfaceVariant, ls: 0.5)),
+          ],
+        ]),
+        // Why this option is right / wrong (from the stored answer key).
+        if (why.isNotEmpty) ...[
+          const SizedBox(height: 6),
+          Padding(
+            padding: const EdgeInsets.only(left: 20),
+            child: MixedMathText(
+                why.startsWith('is ') ? 'This option $why' : why,
+                fontSize: 12.5,
+                color: isKey ? AppColors.success : AppColors.muted),
+          ),
         ],
       ]),
     );
