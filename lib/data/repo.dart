@@ -19,9 +19,12 @@ class Repo {
     required String email,
     required String password,
     required String fullName,
-    required String institutionName,
+    String institutionName = '',
     String? board,
     String? city,
+    String? kind, // 'individual' for a solo marketplace teacher
+    List<String>? subjects,
+    String? headline,
   }) async {
     final r = await api.post('/v1/auth/register', {
       'email': email,
@@ -30,6 +33,9 @@ class Repo {
       'institution_name': institutionName,
       'board': ?board,
       'city': ?city,
+      'kind': ?kind,
+      'subjects': ?subjects,
+      'headline': ?headline,
     });
     await api.setSession(r['token'] as String, 'teacher');
     await _captureTeacherIdentity(r);

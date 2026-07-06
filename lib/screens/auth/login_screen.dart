@@ -152,6 +152,21 @@ class _LoginScreenState extends State<LoginScreen> {
                     ],
                   )),
                 ),
+                if (!_isStudent)
+                  TextButton(
+                    onPressed: () => context.go('/register/independent'),
+                    child: Text.rich(TextSpan(
+                      text: 'Teaching solo?  ',
+                      style: Theme.of(context).textTheme.bodyMedium,
+                      children: const [
+                        TextSpan(
+                            text: 'Sign up as an independent teacher',
+                            style: TextStyle(
+                                color: AppColors.teal,
+                                fontWeight: FontWeight.w600)),
+                      ],
+                    )),
+                  ),
               ],
             ),
           ),

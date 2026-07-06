@@ -41,6 +41,7 @@ import '../screens/auth/forgot_password_screen.dart';
 import '../screens/bank/question_bank_screen.dart';
 import '../screens/wizard/generate_screen.dart';
 import '../screens/wizard/public_profile_screen.dart';
+import '../screens/auth/independent_signup_screen.dart';
 import '../screens/wizard/puc_paper_screen.dart';
 import '../screens/shared/notifications_screen.dart';
 import '../screens/shared/settings_screen.dart';
@@ -145,6 +146,7 @@ final List<RouteBase> _studentRoutes = [
 /// The teacher AND admin apps (both use the dashboard/authoring surface).
 final List<RouteBase> _educatorRoutes = [
   GoRoute(path: '/register', pageBuilder: (c, s) => _page(const RegistrationScreen(), s)),
+  GoRoute(path: '/register/independent', pageBuilder: (c, s) => _page(const IndependentSignupScreen(), s)),
   GoRoute(path: '/register/institution', pageBuilder: (c, s) => _page(const InstitutionSetupScreen(), s)),
   GoRoute(path: '/register/finalize', pageBuilder: (c, s) => _page(const OnboardingFinalizeScreen(), s)),
   GoRoute(path: '/dashboard', pageBuilder: (c, s) => _page(const DashboardScreen(), s)),
