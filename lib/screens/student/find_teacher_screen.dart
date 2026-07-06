@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../../app/theme.dart';
 import '../../data/repo.dart';
 import '../../widgets/common.dart';
@@ -152,7 +153,13 @@ class _FindTeacherScreenState extends State<FindTeacherScreen> {
     final joining = _joiningId == '${t['id']}';
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
-      child: AppCard(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        onTap: () async {
+          await context.push('/student/teacher/${t['id']}');
+          if (mounted) _load(); // refresh counts/rating on return
+        },
+        child: AppCard(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -212,6 +219,7 @@ class _FindTeacherScreenState extends State<FindTeacherScreen> {
             ]),
           ],
         ),
+      ),
       ),
     );
   }

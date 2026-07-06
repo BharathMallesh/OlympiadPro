@@ -26,6 +26,7 @@ import '../screens/student/registration_screen.dart';
 import '../screens/student/interests_screen.dart';
 import '../screens/student/join_class_screen.dart';
 import '../screens/student/find_teacher_screen.dart';
+import '../screens/student/teacher_detail_screen.dart';
 import '../screens/student/hub_screen.dart';
 import '../screens/student/insights_screen.dart';
 import '../screens/student/practice_generator_screen.dart';
@@ -90,6 +91,7 @@ final List<RouteBase> _studentRoutes = [
   GoRoute(path: '/student/interests', pageBuilder: (c, s) => _page(AcademicInterestsScreen(editing: s.uri.queryParameters['edit'] == '1'), s)),
   GoRoute(path: '/student/join-class', pageBuilder: (c, s) => _page(const JoinClassScreen(), s)),
   GoRoute(path: '/student/find-teacher', pageBuilder: (c, s) => _page(const FindTeacherScreen(), s)),
+  GoRoute(path: '/student/teacher/:id', pageBuilder: (c, s) => _page(TeacherDetailScreen(teacherId: s.pathParameters['id']!), s)),
   GoRoute(path: '/student/hub', pageBuilder: (c, s) => _page(const StudentHubScreen(), s)),
   GoRoute(path: '/student/insights', pageBuilder: (c, s) => _page(const InsightsScreen(), s)),
   GoRoute(

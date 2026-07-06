@@ -616,6 +616,18 @@ class Repo {
     await api.post('/v1/student/join-teacher', {'teacher_id': teacherId});
   }
 
+  /// Public written reviews for a teacher (newest first).
+  static Future<List<Map<String, dynamic>>> teacherReviews(String id) async {
+    final r = await api.get('/v1/student/teachers/$id/reviews') as List;
+    return r.cast<Map<String, dynamic>>();
+  }
+
+  /// Rate a teacher 1–5 with an optional review; returns the new avg + count.
+  static Future<Map<String, dynamic>> rateTeacher(
+          String id, int stars, String? review) async =>
+      await api.post('/v1/student/teachers/$id/rate',
+          {'stars': stars, 'review': review}) as Map<String, dynamic>;
+
   /// The signed-in teacher's own marketplace profile (for the publish screen).
   static Future<Map<String, dynamic>> teacherProfileSelf() async =>
       await api.get('/v1/auth/profile') as Map<String, dynamic>;
