@@ -582,6 +582,49 @@ class Repo {
     return ((r['target_boards'] as List?) ?? const []).cast<String>();
   }
 
+  /// Preview a class by its teacher join code (no enrolment). Returns the match
+  /// map (`class`, `teacher`, `institution`, `students`) or null if not found.
+  static Future<Map<String, dynamic>?> classLookup(String code) async {
+    final r = await api.get('/v1/student/class-lookup',
+        query: {'code': code}) as Map<String, dynamic>;
+    return (r['found'] == true) ? r : null;
+  }
+
+  /// Enrol the signed-in student into the class for [code]; returns the joined
+  /// class map. Throws on an unknown code.
+  static Future<Map<String, dynamic>> joinClass(String code) async {
+    return await api.post('/v1/student/join-class', {'code': code})
+        as Map<String, dynamic>;
+  }
+
+  /// Public teacher directory (marketplace). Optional subject + text filters.
+  static Future<List<Map<String, dynamic>>> teacherDirectory(
+      {String? subject, String? q}) async {
+    final query = <String, String>{};
+    if (subject != null && subject.isNotEmpty) query['subject'] = subject;
+    if (q != null && q.trim().isNotEmpty) query['q'] = q.trim();
+    final r = await api.get('/v1/student/teachers', query: query) as List;
+    return r.cast<Map<String, dynamic>>();
+  }
+
+  /// A public teacher's profile + joinable classes.
+  static Future<Map<String, dynamic>> teacherProfile(String id) async =>
+      await api.get('/v1/student/teachers/$id') as Map<String, dynamic>;
+
+  /// Follow a teacher from the directory (enrol in their class).
+  static Future<void> joinTeacher(String teacherId) async {
+    await api.post('/v1/student/join-teacher', {'teacher_id': teacherId});
+  }
+
+  /// The signed-in teacher's own marketplace profile (for the publish screen).
+  static Future<Map<String, dynamic>> teacherProfileSelf() async =>
+      await api.get('/v1/auth/profile') as Map<String, dynamic>;
+
+  /// Teacher edits their own public marketplace profile; returns the saved one.
+  static Future<Map<String, dynamic>> updateTeacherProfile(
+          Map<String, dynamic> fields) async =>
+      await api.put('/v1/auth/profile', fields) as Map<String, dynamic>;
+
   /// The curricula the student follows (NCERT / CBSE / State Board …).
   static Future<List<String>> studentCurricula() async {
     final r = await api.get('/v1/student/curricula') as Map<String, dynamic>;

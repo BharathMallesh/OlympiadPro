@@ -21,6 +21,7 @@ const kNavDestinations = <NavDest>[
   NavDest('Exam Creator', Icons.edit_note_outlined, '/wizard/details'),
   NavDest('Grading', Icons.star_outline, '/grading/submissions'),
   NavDest('Analytics', Icons.bar_chart_outlined, '/analytics/exam'),
+  NavDest('Public Profile', Icons.storefront_outlined, '/public-profile'),
 ];
 
 /// The persistent shell (brand sidebar on wide, drawer on narrow) wrapping

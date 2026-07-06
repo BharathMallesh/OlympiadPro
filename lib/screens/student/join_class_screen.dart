@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../app/theme.dart';
+import '../../data/repo.dart';
 import '../../widgets/common.dart';
 
 class JoinClassScreen extends StatefulWidget {
@@ -10,13 +11,56 @@ class JoinClassScreen extends StatefulWidget {
 }
 
 class _JoinClassScreenState extends State<JoinClassScreen> {
-  final _code = TextEditingController(text: 'MKT-2024-X');
-  bool _verified = false;
+  final _code = TextEditingController();
+  Map<String, dynamic>? _match; // the looked-up class, null until verified
+  bool _looking = false;
+  bool _joining = false;
+  String? _error;
 
   @override
   void dispose() {
     _code.dispose();
     super.dispose();
+  }
+
+  /// Look up the class for the entered code (no enrolment yet).
+  Future<void> _verify() async {
+    final code = _code.text.trim();
+    if (code.isEmpty) return;
+    setState(() {
+      _looking = true;
+      _error = null;
+      _match = null;
+    });
+    try {
+      final m = await Repo.classLookup(code);
+      if (!mounted) return;
+      setState(() {
+        _match = m;
+        _error = m == null ? 'No class found for that code.' : null;
+      });
+    } catch (e) {
+      if (mounted) setState(() => _error = 'Could not verify: $e');
+    } finally {
+      if (mounted) setState(() => _looking = false);
+    }
+  }
+
+  /// Enrol the student into the verified class, then enter the dashboard.
+  Future<void> _join() async {
+    if (_joining) return;
+    setState(() => _joining = true);
+    try {
+      await Repo.joinClass(_code.text.trim());
+      if (mounted) context.go('/student/hub');
+    } catch (e) {
+      if (mounted) {
+        setState(() => _joining = false);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('Could not join: $e'),
+            backgroundColor: AppColors.error));
+      }
+    }
   }
 
   @override
@@ -76,20 +120,36 @@ class _JoinClassScreenState extends State<JoinClassScreen> {
                       children: [
                         const FieldLabel('Class Code'),
                         Row(children: [
-                          Expanded(child: AppInput(controller: _code)),
+                          Expanded(
+                              child: AppInput(
+                                  controller: _code,
+                                  hint: 'e.g. C5621CCC')),
                           const SizedBox(width: 10),
-                          AppButton('Verify',
-                              onPressed: () => setState(() => _verified = true)),
+                          AppButton(_looking ? 'Checking…' : 'Verify',
+                              onPressed: _looking ? null : _verify),
                         ]),
                         const SizedBox(height: 10),
-                        Text('Case-sensitive identifier provided via syllabus or email.',
+                        Text('The join code your teacher shared (via syllabus or email).',
                             style: Theme.of(context).textTheme.bodySmall
                                 ?.copyWith(fontStyle: FontStyle.italic)),
+                        if (_error != null) ...[
+                          const SizedBox(height: 10),
+                          Row(children: [
+                            const Icon(Icons.error_outline,
+                                size: 16, color: AppColors.error),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(_error!,
+                                  style: Theme.of(context).textTheme.bodySmall
+                                      ?.copyWith(color: AppColors.error)),
+                            ),
+                          ]),
+                        ],
                       ],
                     ),
                   ),
                   const SizedBox(height: 16),
-                  if (_verified) ...[
+                  if (_match != null) ...[
                     AppCard(
                       accentTop: AppColors.teal,
                       child: Column(
@@ -103,30 +163,36 @@ class _JoinClassScreenState extends State<JoinClassScreen> {
                                 size: 18, color: AppColors.muted),
                           ]),
                           const SizedBox(height: 16),
-                          Text('Advanced Calculus - Section A',
+                          Text('${_match!['class']}',
                               style: Theme.of(context).textTheme.headlineSmall),
                           const SizedBox(height: 18),
-                          Row(children: const [
+                          Row(children: [
                             Expanded(
-                              child: _Meta('Instructor', 'Dr. Aris Thorne',
-                                  Icons.person_outline),
+                              child: _Meta('Instructor',
+                                  '${_match!['teacher']}', Icons.person_outline),
                             ),
                             Expanded(
-                              child: _Meta('Population', '42 Students enrolled',
+                              child: _Meta(
+                                  'Population',
+                                  '${_match!['students']} '
+                                      'student${_match!['students'] == 1 ? '' : 's'} enrolled',
                                   Icons.groups_outlined),
                             ),
                           ]),
                           const SizedBox(height: 14),
-                          const _Meta('School / Institute', 'Excellence Academy',
+                          _Meta('School / Institute', '${_match!['institution']}',
                               Icons.account_balance_outlined),
                         ],
                       ),
                     ),
                     const SizedBox(height: 24),
-                    AppButton('Complete Setup & Enter Dashboard',
+                    AppButton(
+                        _joining
+                            ? 'Joining…'
+                            : 'Complete Setup & Enter Dashboard',
                         expand: true,
                         trailingIcon: Icons.rocket_launch_outlined,
-                        onPressed: () => context.go('/student/hub')),
+                        onPressed: _joining ? null : _join),
                   ] else
                     AppButton('Skip for now — Enter Dashboard',
                         kind: AppBtnKind.ghost,

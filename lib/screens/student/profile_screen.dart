@@ -227,7 +227,17 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
                           style: Theme.of(context).textTheme.bodyLarge),
                       trailing: const Icon(Icons.chevron_right,
                           size: 18, color: AppColors.muted),
-                      onTap: () => context.push(route),
+                      // Refresh on return: editing Academic Interests saves the
+                      // target exams on another screen, so re-pull them so the
+                      // Target Exam picker doesn't show stale selections.
+                      onTap: () async {
+                        await context.push(route);
+                        if (!mounted) return;
+                        try {
+                          final sb = await Repo.studentBoards();
+                          if (mounted) setState(() => _boards = sb);
+                        } catch (_) {}
+                      },
                     ),
                     const Divider(height: 1),
                   ]),

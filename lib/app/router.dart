@@ -25,6 +25,7 @@ import '../screens/analytics/class_heatmap_screen.dart';
 import '../screens/student/registration_screen.dart';
 import '../screens/student/interests_screen.dart';
 import '../screens/student/join_class_screen.dart';
+import '../screens/student/find_teacher_screen.dart';
 import '../screens/student/hub_screen.dart';
 import '../screens/student/insights_screen.dart';
 import '../screens/student/practice_generator_screen.dart';
@@ -38,6 +39,7 @@ import '../screens/student/my_exams_screen.dart';
 import '../screens/auth/forgot_password_screen.dart';
 import '../screens/bank/question_bank_screen.dart';
 import '../screens/wizard/generate_screen.dart';
+import '../screens/wizard/public_profile_screen.dart';
 import '../screens/wizard/puc_paper_screen.dart';
 import '../screens/shared/notifications_screen.dart';
 import '../screens/shared/settings_screen.dart';
@@ -87,6 +89,7 @@ final List<RouteBase> _studentRoutes = [
   GoRoute(path: '/student/register', pageBuilder: (c, s) => _page(const StudentRegistrationScreen(), s)),
   GoRoute(path: '/student/interests', pageBuilder: (c, s) => _page(AcademicInterestsScreen(editing: s.uri.queryParameters['edit'] == '1'), s)),
   GoRoute(path: '/student/join-class', pageBuilder: (c, s) => _page(const JoinClassScreen(), s)),
+  GoRoute(path: '/student/find-teacher', pageBuilder: (c, s) => _page(const FindTeacherScreen(), s)),
   GoRoute(path: '/student/hub', pageBuilder: (c, s) => _page(const StudentHubScreen(), s)),
   GoRoute(path: '/student/insights', pageBuilder: (c, s) => _page(const InsightsScreen(), s)),
   GoRoute(
@@ -189,6 +192,7 @@ final List<RouteBase> _educatorRoutes = [
   // Question bank / generation
   GoRoute(path: '/bank', pageBuilder: (c, s) => _page(const QuestionBankScreen(), s)),
   GoRoute(path: '/generate', pageBuilder: (c, s) => _page(const GenerateScreen(), s)),
+  GoRoute(path: '/public-profile', pageBuilder: (c, s) => _page(const PublicProfileScreen(), s)),
   GoRoute(path: '/puc-paper', pageBuilder: (c, s) => _page(const PucPaperScreen(), s)),
   GoRoute(path: '/roster', pageBuilder: (c, s) => _page(const RosterScreen(), s)),
   GoRoute(
