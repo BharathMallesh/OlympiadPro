@@ -77,6 +77,43 @@ class _InsightsScreenState extends State<InsightsScreen> {
                       Text('Your Progress',
                           style: Theme.of(context).textTheme.headlineMedium),
                       const SizedBox(height: 16),
+                      InkWell(
+                        borderRadius: BorderRadius.circular(AppRadius.lg),
+                        onTap: () => context.push('/student/progress'),
+                        child: Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(AppRadius.lg),
+                            color: AppColors.teal.withValues(alpha: 0.08),
+                            border: Border.all(color: AppColors.teal),
+                          ),
+                          child: Row(children: [
+                            const Icon(Icons.insights_outlined,
+                                color: AppColors.teal),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text('Full Progress Report',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .titleMedium),
+                                  Text(
+                                      'Accuracy by subject · board · chapter · topic · exams',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodySmall),
+                                ],
+                              ),
+                            ),
+                            const Icon(Icons.chevron_right,
+                                color: AppColors.muted, size: 18),
+                          ]),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
                       _progressCard(context),
                       const SizedBox(height: 16),
                       _boardCard(context),

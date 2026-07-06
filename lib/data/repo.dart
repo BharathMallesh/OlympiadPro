@@ -603,6 +603,11 @@ class Repo {
         as Map<String, dynamic>;
   }
 
+  /// Full self-improvement report: accuracy by subject / chapter / topic /
+  /// board, plus per-exam scores.
+  static Future<Map<String, dynamic>> progressReport() async =>
+      await api.get('/v1/student/progress/report') as Map<String, dynamic>;
+
   /// Public teacher directory (marketplace). Optional subject + text filters.
   static Future<List<Map<String, dynamic>>> teacherDirectory(
       {String? subject, String? q}) async {
