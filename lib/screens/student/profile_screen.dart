@@ -212,6 +212,8 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
               child: Column(children: [
                 for (final (icon, label, route) in [
                   (Icons.school_outlined, 'My Classroom', '/student/hub'),
+                  (Icons.insights_outlined, 'Progress Report',
+                      '/student/progress'),
                   (Icons.fact_check_outlined, 'Academic Interests',
                       '/student/interests?edit=1'),
                   (Icons.person_search_outlined, 'Find a Teacher',

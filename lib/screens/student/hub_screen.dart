@@ -388,6 +388,12 @@ class _StudentHubScreenState extends State<StudentHubScreen> {
                         context.push('/student/practice-generator?pyq=1'
                             '${exam != null ? '&boards=$exam' : ''}');
                       }),
+                  const SizedBox(height: 10),
+                  AppButton('My Progress Report',
+                      expand: true,
+                      kind: AppBtnKind.ghost,
+                      trailingIcon: Icons.insights_outlined,
+                      onPressed: () => context.push('/student/progress')),
                   const SizedBox(height: 24),
                   if (!_loadingActivity && _activity.isNotEmpty) ...[
                     const SizedBox(height: 8),
