@@ -2,18 +2,66 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../app/theme.dart';
 import '../../data/exam_scope.dart';
+import '../../data/repo.dart';
 import '../../widgets/common.dart';
 import '../../widgets/help_dialog.dart';
 
 class AcademicInterestsScreen extends StatefulWidget {
-  const AcademicInterestsScreen({super.key});
+  /// `editing` = reached from the profile (not first-time onboarding): we drop
+  /// the onboarding chrome, preload the saved exams, and show a Save button
+  /// that persists and returns to the profile.
+  const AcademicInterestsScreen({super.key, this.editing = false});
+  final bool editing;
   @override
   State<AcademicInterestsScreen> createState() => _AcademicInterestsScreenState();
 }
 
 class _AcademicInterestsScreenState extends State<AcademicInterestsScreen> {
-  String _exam = 'JEE';
+  final Set<String> _exams = {'JEE'};
   final _subjects = {'Mathematics': true, 'Physics': true, 'Chemistry': false, 'Biology': false};
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.editing) _loadSaved();
+  }
+
+  Future<void> _loadSaved() async {
+    try {
+      final saved = await Repo.studentBoards();
+      final norm = saved.map(ExamScope.normalize).whereType<String>().toSet();
+      if (mounted && norm.isNotEmpty) {
+        setState(() => _exams..clear()..addAll(norm));
+      }
+    } catch (_) {/* keep defaults on failure */}
+  }
+
+  /// Persist the selected exams (and their derived curricula). Then either
+  /// return to the profile (editing) or continue onboarding.
+  Future<void> _saveOrContinue() async {
+    if (_saving) return;
+    setState(() => _saving = true);
+    try {
+      final boards = _exams.toList();
+      final curricula = {for (final e in _exams) ExamScope.curriculumFor(e)}.toList();
+      await Repo.setStudentBoards(boards);
+      await Repo.setStudentCurricula(curricula);
+      if (!mounted) return;
+      if (widget.editing) {
+        context.pop();
+      } else {
+        context.go('/student/join-class');
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _saving = false);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('Could not save: $e'),
+            backgroundColor: AppColors.error));
+      }
+    }
+  }
 
   static const _subjectIcons = {
     'Mathematics': Icons.functions,
@@ -25,7 +73,7 @@ class _AcademicInterestsScreenState extends State<AcademicInterestsScreen> {
   @override
   Widget build(BuildContext context) {
     return PopRedirect(
-      fallbackRoute: '/student/register',
+      fallbackRoute: widget.editing ? '/student/profile' : '/student/register',
       child: Scaffold(
         backgroundColor: AppColors.background,
         appBar: AppBar(
@@ -33,8 +81,10 @@ class _AcademicInterestsScreenState extends State<AcademicInterestsScreen> {
           leading: IconButton(
               tooltip: 'Back',
               icon: const Icon(Icons.arrow_back),
-              onPressed: () => context.go('/student/register')),
-          title: Text('Vidyora',
+              onPressed: () => widget.editing
+                  ? context.pop()
+                  : context.go('/student/register')),
+          title: Text(widget.editing ? 'Academic Interests' : 'Vidyora',
               style: Theme.of(context).textTheme.titleLarge
                   ?.copyWith(color: AppColors.primary, fontWeight: FontWeight.w700)),
           actions: const [
@@ -60,20 +110,21 @@ class _AcademicInterestsScreenState extends State<AcademicInterestsScreen> {
             constraints: const BoxConstraints(maxWidth: 520),
             child: Column(
               children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
-                  child: Column(children: [
-                    Row(children: [
-                      Text('ONBOARDING',
-                          style: AppTheme.mono(10, FontWeight.w600, ls: 1.2)),
-                      const Spacer(),
-                      Text('Step 2 of 3',
-                          style: Theme.of(context).textTheme.bodySmall),
+                if (!widget.editing)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
+                    child: Column(children: [
+                      Row(children: [
+                        Text('ONBOARDING',
+                            style: AppTheme.mono(10, FontWeight.w600, ls: 1.2)),
+                        const Spacer(),
+                        Text('Step 2 of 3',
+                            style: Theme.of(context).textTheme.bodySmall),
+                      ]),
+                      const SizedBox(height: 8),
+                      const ProgressLine(0.66, height: 5),
                     ]),
-                    const SizedBox(height: 8),
-                    const ProgressLine(0.66, height: 5),
-                  ]),
-                ),
+                  ),
                 Expanded(
                   child: SingleChildScrollView(
                     padding: const EdgeInsets.all(AppSpacing.lg),
@@ -104,22 +155,28 @@ class _AcademicInterestsScreenState extends State<AcademicInterestsScreen> {
                                   color: AppColors.teal),
                               const SizedBox(height: 8),
                               Text(
-                                  'NEET & JEE follow the NCERT syllabus; CET '
-                                  'follows the State Board syllabus.',
+                                  'Pick one or more. NEET & JEE follow the NCERT '
+                                  'syllabus; CET follows the State Board syllabus.',
                                   style: Theme.of(context).textTheme.bodySmall),
                               const SizedBox(height: 14),
                               Wrap(spacing: 10, runSpacing: 10, children: [
                                 for (final e in ExamScope.exams)
                                   _ExamChip(
                                     label: e,
-                                    selected: _exam == e,
-                                    onTap: () => setState(() => _exam = e),
+                                    selected: _exams.contains(e),
+                                    onTap: () => setState(() => _exams.contains(e)
+                                        ? _exams.remove(e)
+                                        : _exams.add(e)),
                                   ),
                               ]),
-                              const SizedBox(height: 12),
-                              Text('$_exam · ${ExamScope.curriculumFor(_exam)} syllabus',
-                                  style: AppTheme.mono(11, FontWeight.w700,
-                                      color: AppColors.teal)),
+                              if (_exams.isNotEmpty) ...[
+                                const SizedBox(height: 12),
+                                Text(
+                                    '${_exams.join(', ')} · '
+                                    '${{for (final e in _exams) ExamScope.curriculumFor(e)}.join(' + ')} syllabus',
+                                    style: AppTheme.mono(11, FontWeight.w700,
+                                        color: AppColors.teal)),
+                              ],
                             ],
                           ),
                         ),
@@ -155,9 +212,12 @@ class _AcademicInterestsScreenState extends State<AcademicInterestsScreen> {
                 ),
                 Padding(
                   padding: const EdgeInsets.all(AppSpacing.md),
-                  child: AppButton('Continue',
+                  child: AppButton(
+                      widget.editing
+                          ? (_saving ? 'Saving…' : 'Save')
+                          : 'Continue',
                       expand: true,
-                      onPressed: () => context.go('/student/join-class')),
+                      onPressed: _saving ? null : _saveOrContinue),
                 ),
               ],
             ),

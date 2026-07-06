@@ -468,8 +468,12 @@ class _PracticeGeneratorScreenState extends State<PracticeGeneratorScreen> {
       tab('subject', 'SUBJECT', Icons.category_outlined),
       const SizedBox(width: 8),
       tab('chapter', 'CHAPTER', Icons.account_tree_outlined),
-      const SizedBox(width: 8),
-      tab('topic', 'TOPIC', Icons.label_outline),
+      // Topic-level drill-down is offered for AI practice only; the
+      // previous-years test builder stops at subject/chapter.
+      if (!widget.pyq) ...[
+        const SizedBox(width: 8),
+        tab('topic', 'TOPIC', Icons.label_outline),
+      ],
     ]);
   }
 

@@ -175,11 +175,16 @@ class PracticeResultsScreen extends StatelessWidget {
           const SizedBox(height: 8),
           MixedMathText(q['prompt'] as String? ?? '', fontSize: 15),
           const SizedBox(height: 8),
-          Text(
-              'Your answer: ${letters(pickedIdx)}   ·   '
-              'Correct: ${letters(correctIdx)}'
-              '${firstCorrect != null && options.length > firstCorrect ? ' — ${options[firstCorrect]['text']}' : ''}',
+          Text('Your answer: ${letters(pickedIdx)}   ·   Correct: ${letters(correctIdx)}',
               style: AppTheme.mono(11, FontWeight.w500,
+                  color: correct ? AppColors.success : AppColors.error)),
+          // Render the correct option through MixedMathText so LaTeX answers
+          // (matrices, fractions, …) don't leak raw markup into the summary.
+          if (firstCorrect != null && options.length > firstCorrect)
+            Padding(
+              padding: const EdgeInsets.only(top: 3),
+              child: MixedMathText(options[firstCorrect]['text'] as String? ?? '',
+                  fontSize: 12,
                   color: correct ? AppColors.success : AppColors.error)),
         ],
       ),

@@ -26,12 +26,16 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
     _load();
   }
 
-  /// Pick ONE exam; its curriculum follows the rule (NEET/JEE→NCERT, CET→State
-  /// Board) and both are saved together, so the profile can never hold a
-  /// contradictory board/curriculum pair.
-  Future<void> _selectExam(String exam) async {
-    final boards = [exam];
-    final curricula = [ExamScope.curriculumFor(exam)];
+  /// Toggle an exam in the target set. A student can prepare for several exams
+  /// at once (e.g. NEET + JEE). The curricula are derived from whichever exams
+  /// are selected (NEET/JEE→NCERT, CET→State Board), so practice scoping stays
+  /// consistent and the profile can never hold a contradictory board/curriculum
+  /// pair.
+  Future<void> _toggleExam(String exam) async {
+    final boards = _boards.any((b) => ExamScope.normalize(b) == exam)
+        ? _boards.where((b) => ExamScope.normalize(b) != exam).toList()
+        : [..._boards, exam];
+    final curricula = {for (final b in boards) ExamScope.curriculumFor(b)}.toList();
     setState(() => _boards = boards);
     try {
       final sb = await Repo.setStudentBoards(boards);
@@ -44,6 +48,17 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
             backgroundColor: AppColors.error));
       }
     }
+  }
+
+  /// "NEET, JEE · NCERT syllabus" — the selected exams and their distinct
+  /// curricula. Empty when nothing is selected.
+  String _scopeLabel() {
+    final sels = ExamScope.exams
+        .where((e) => _boards.any((b) => ExamScope.normalize(b) == e))
+        .toList();
+    if (sels.isEmpty) return '';
+    final curs = {for (final e in sels) ExamScope.curriculumFor(e)}.toList();
+    return '${sels.join(', ')} · ${curs.join(' + ')} syllabus';
   }
 
   Future<void> _load() async {
@@ -131,9 +146,10 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                      'Pick the exam you’re preparing for. NEET & JEE follow the '
-                      'NCERT syllabus; CET follows the State Board syllabus — your '
-                      'practice is scoped accordingly.',
+                      'Pick the exams you’re preparing for — you can choose more '
+                      'than one. NEET & JEE follow the NCERT syllabus; CET follows '
+                      'the State Board syllabus — your practice is scoped '
+                      'accordingly.',
                       style: Theme.of(context).textTheme.bodySmall),
                   const SizedBox(height: 12),
                   Wrap(
@@ -142,9 +158,10 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
                     children: [
                       for (final e in ExamScope.exams)
                         Builder(builder: (_) {
-                          final sel = ExamScope.examOf(_boards) == e;
+                          final sel =
+                              _boards.any((b) => ExamScope.normalize(b) == e);
                           return InkWell(
-                            onTap: _loading ? null : () => _selectExam(e),
+                            onTap: _loading ? null : () => _toggleExam(e),
                             borderRadius: BorderRadius.circular(AppRadius.pill),
                             child: Container(
                               padding: const EdgeInsets.symmetric(
@@ -172,17 +189,17 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
                         }),
                     ],
                   ),
-                  if (ExamScope.examOf(_boards) != null) ...[
+                  if (_boards.isNotEmpty) ...[
                     const SizedBox(height: 12),
                     Row(children: [
                       const Icon(Icons.menu_book_outlined,
                           size: 15, color: AppColors.primary),
                       const SizedBox(width: 6),
-                      Text(
-                          '${ExamScope.examOf(_boards)} · '
-                          '${ExamScope.curriculumFor(ExamScope.examOf(_boards)!)} syllabus',
-                          style: AppTheme.mono(12, FontWeight.w700,
-                              color: AppColors.onSurface)),
+                      Expanded(
+                        child: Text(_scopeLabel(),
+                            style: AppTheme.mono(12, FontWeight.w700,
+                                color: AppColors.onSurface)),
+                      ),
                     ]),
                   ],
                 ],
@@ -196,7 +213,7 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
                 for (final (icon, label, route) in [
                   (Icons.school_outlined, 'My Classroom', '/student/hub'),
                   (Icons.fact_check_outlined, 'Academic Interests',
-                      '/student/interests'),
+                      '/student/interests?edit=1'),
                   (Icons.group_add_outlined, 'Join a Class',
                       '/student/join-class'),
                   (Icons.assignment_outlined, 'My Exams', '/student/exams'),

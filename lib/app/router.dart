@@ -85,7 +85,7 @@ final List<RouteBase> _authRoutes = [
 /// The student app.
 final List<RouteBase> _studentRoutes = [
   GoRoute(path: '/student/register', pageBuilder: (c, s) => _page(const StudentRegistrationScreen(), s)),
-  GoRoute(path: '/student/interests', pageBuilder: (c, s) => _page(const AcademicInterestsScreen(), s)),
+  GoRoute(path: '/student/interests', pageBuilder: (c, s) => _page(AcademicInterestsScreen(editing: s.uri.queryParameters['edit'] == '1'), s)),
   GoRoute(path: '/student/join-class', pageBuilder: (c, s) => _page(const JoinClassScreen(), s)),
   GoRoute(path: '/student/hub', pageBuilder: (c, s) => _page(const StudentHubScreen(), s)),
   GoRoute(path: '/student/insights', pageBuilder: (c, s) => _page(const InsightsScreen(), s)),

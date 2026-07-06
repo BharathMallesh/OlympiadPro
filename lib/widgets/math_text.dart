@@ -2,6 +2,37 @@ import 'package:flutter/material.dart';
 import 'package:flutter_math_fork/flutter_math.dart';
 import '../app/theme.dart';
 
+/// Scraped/AI LaTeX often carries artifacts that KaTeX can't parse inline —
+/// most commonly `\\` (a line-break, invalid in inline math) and `\_`
+/// (an escaped subscript). Left alone they throw and the segment falls back to
+/// showing its raw `$...$` source. Normalising them lets real math render and
+/// keeps the fallback readable. Kept deliberately conservative.
+String sanitizeInlineTex(String s) {
+  var t = s;
+  // `\\` is spurious in inline prose (a stray line-break) but is the genuine
+  // ROW separator inside array/matrix environments — only collapse it when
+  // there's no such environment, or matrices would flatten to a single row.
+  if (!t.contains(r'\begin{')) t = t.replaceAll(r'\\', ' ');
+  return t
+      .replaceAll(r'\_', '_') // escaped subscript -> real subscript
+      // `\lim _\limits{...}` / `\sum _\limits{...}`: the scraper split the
+      // operator's subscript from `\limits`. KaTeX wants `\limits_{...}`.
+      .replaceAll(r'_\limits', r'\limits_')
+      // `\left{ ... \right}`: KaTeX requires escaped braces as delimiters.
+      .replaceAll(r'\left{', r'\left\{')
+      .replaceAll(r'\right}', r'\right\}')
+      .replaceAll(RegExp(r'[ \t]+'), ' ')
+      .trim();
+}
+
+/// Human-readable plain-text form for when TeX still won't parse: drop the
+/// leftover math punctuation so the option reads as words, never as markup.
+String _plainFromTex(String s) => sanitizeInlineTex(s)
+    .replaceAll(RegExp(r'[\${}]'), '')
+    .replaceAll(RegExp(r'\\[a-zA-Z]+'), '')
+    .replaceAll('^', '')
+    .trim();
+
 /// Real LaTeX rendering per the MathKraft design doc ("math-latex-white" on
 /// the void panel, >=7:1 contrast). Falls back to monospace if TeX parsing
 /// fails so malformed AI output never breaks a screen.
@@ -15,9 +46,9 @@ class MathText extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = color ?? const Color(0xFFF5F5F5);
     return Math.tex(
-      latex,
+      sanitizeInlineTex(latex),
       textStyle: TextStyle(fontSize: fontSize, color: c),
-      onErrorFallback: (_) => Text(latex,
+      onErrorFallback: (_) => Text(_plainFromTex(latex),
           style: AppTheme.mono(fontSize * 0.85, FontWeight.w500, color: c, ls: 0)),
     );
   }
@@ -81,7 +112,8 @@ class MixedMathText extends StatelessWidget {
       if (m.start > cursor) {
         spans.add(TextSpan(text: source.substring(cursor, m.start)));
       }
-      final tex = (m.group(1) ?? m.group(2) ?? '').trim();
+      final rawTex = (m.group(1) ?? m.group(2) ?? '').trim();
+      final tex = sanitizeInlineTex(rawTex);
       spans.add(WidgetSpan(
         alignment: PlaceholderAlignment.middle,
         child: Math.tex(
@@ -91,7 +123,8 @@ class MixedMathText extends StatelessWidget {
           textStyle: TextStyle(
               fontSize: fontSize,
               color: color ?? base.color ?? AppColors.onSurface),
-          onErrorFallback: (_) => Text('\$$tex\$', style: base),
+          // If it still won't parse, show clean text — never the raw `$...$`.
+          onErrorFallback: (_) => Text(_plainFromTex(rawTex), style: base),
         ),
       ));
       cursor = m.end;
