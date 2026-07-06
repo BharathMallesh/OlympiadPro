@@ -214,6 +214,8 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
                   (Icons.school_outlined, 'My Classroom', '/student/hub'),
                   (Icons.fact_check_outlined, 'Academic Interests',
                       '/student/interests?edit=1'),
+                  (Icons.person_search_outlined, 'Find a Teacher',
+                      '/student/find-teacher'),
                   (Icons.group_add_outlined, 'Join a Class',
                       '/student/join-class'),
                   (Icons.assignment_outlined, 'My Exams', '/student/exams'),
