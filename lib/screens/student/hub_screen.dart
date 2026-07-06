@@ -302,32 +302,6 @@ class _StudentHubScreenState extends State<StudentHubScreen> {
                         ),
             ),
             const SizedBox(height: 12),
-            // Find a teacher (marketplace directory)
-            InkWell(
-              borderRadius: BorderRadius.circular(AppRadius.lg),
-              onTap: () => context.push('/student/find-teacher'),
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(AppRadius.lg),
-                  color: AppColors.teal.withValues(alpha: 0.08),
-                  border: Border.all(color: AppColors.teal),
-                ),
-                child: Column(children: [
-                  const Icon(Icons.person_search_outlined,
-                      color: AppColors.teal, size: 28),
-                  const SizedBox(height: 8),
-                  Text('Find a Teacher',
-                      style: Theme.of(context).textTheme.titleMedium),
-                  const SizedBox(height: 4),
-                  Text('Browse expert teachers by subject and follow the ones you like.',
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.bodySmall),
-                ]),
-              ),
-            ),
-            const SizedBox(height: 12),
             // Join a class
             InkWell(
               borderRadius: BorderRadius.circular(AppRadius.lg),
