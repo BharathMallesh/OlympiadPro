@@ -301,31 +301,6 @@ class _StudentHubScreenState extends State<StudentHubScreen> {
                           ],
                         ),
             ),
-            const SizedBox(height: 12),
-            // Join a class
-            InkWell(
-              borderRadius: BorderRadius.circular(AppRadius.lg),
-              onTap: () => context.push('/student/join-class'),
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(AppRadius.lg),
-                  border: Border.all(color: AppColors.outlineStrong),
-                ),
-                child: Column(children: [
-                  const Icon(Icons.group_add_outlined,
-                      color: AppColors.muted, size: 28),
-                  const SizedBox(height: 8),
-                  Text('Join a Class',
-                      style: Theme.of(context).textTheme.titleMedium),
-                  const SizedBox(height: 4),
-                  Text("Enter your instructor's code to unlock assignments.",
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.bodySmall),
-                ]),
-              ),
-            ),
             const SizedBox(height: 24),
 
             const StudentSection('Smart Practice', icon: Icons.auto_awesome),
