@@ -121,6 +121,12 @@ class _GenerateScreenState extends State<GenerateScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text('Which subject is this syllabus for?'),
+              const SizedBox(height: 4),
+              Text(
+                  'Tip: you can select multiple PDFs at once — e.g. Part I and '
+                  'Part II of the same subject.',
+                  style: AppTheme.mono(10, FontWeight.w500,
+                      color: AppColors.muted)),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
                 initialValue: selSubject,
@@ -236,7 +242,7 @@ class _GenerateScreenState extends State<GenerateScreen> {
                     yearCtrl.text.trim()
                   ));
                 },
-                child: const Text('Choose PDF')),
+                child: const Text('Choose PDF(s)')),
           ],
         ),
       ),
