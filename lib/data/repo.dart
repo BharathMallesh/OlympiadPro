@@ -56,10 +56,14 @@ class Repo {
   static Future<void> _captureTeacherIdentity(dynamic r) async {
     final t = r['teacher'] as Map<String, dynamic>?;
     if (t != null) {
-      // Label shown under the user's name in the shell. The platform founder is
-      // 'Founder'; institution admins, validators and teachers are all
-      // 'Educator' (they use the same educator app).
-      final role = t['role'] == 'super_admin' ? 'Founder' : 'Educator';
+      // Label shown under the user's name in the shell — reflect the real role
+      // (they all use the same educator app, but an admin should read "Admin").
+      final role = switch (t['role']) {
+        'super_admin' => 'Founder',
+        'admin' => 'Admin',
+        'teacher' => 'Teacher',
+        _ => 'Educator',
+      };
       await api.setIdentity(t['full_name'] as String?, role);
     }
   }
