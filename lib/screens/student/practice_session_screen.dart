@@ -23,16 +23,24 @@ class _PracticeSessionScreenState extends State<PracticeSessionScreen> {
   final Map<String, Set<int>> _selected = {};
 
   // Per-question countdown (#5) and whole-session screen-time (#7/#11).
+  //
+  // Each question adds a 60s allowance to a running pool the first time it is
+  // opened, and the pool ticks down continuously. Time saved on one question
+  // therefore carries into the next: answer in 40s and the next question opens
+  // with 20 + 60 = 80s. The allowance is granted once per question, so paging
+  // back and forth cannot mint extra time.
   static const _perQuestionSeconds = 60;
   Timer? _ticker;
-  int _remaining = _perQuestionSeconds;
+  int _remaining = 0;
+  final Set<int> _granted = {};
   final Stopwatch _watch = Stopwatch();
 
   @override
   void initState() {
     super.initState();
     _watch.start();
-    _startQuestionTimer();
+    _grantFor(0);
+    _startTicker();
   }
 
   @override
@@ -44,23 +52,35 @@ class _PracticeSessionScreenState extends State<PracticeSessionScreen> {
     super.dispose();
   }
 
-  /// (Re)start the 60s clock for the current question; auto-advances at zero.
-  void _startQuestionTimer() {
+  /// Add a question's 60s allowance to the pool, once, the first time it is
+  /// opened. Whatever is left from earlier questions stays in the pool — that
+  /// is what makes unused time carry forward.
+  void _grantFor(int index) {
+    if (_granted.add(index)) _remaining += _perQuestionSeconds;
+  }
+
+  /// One session-wide ticker draining the pool; hitting zero auto-advances,
+  /// which grants the next question its own 60s.
+  void _startTicker() {
     _ticker?.cancel();
-    _remaining = _perQuestionSeconds;
     _ticker = Timer.periodic(const Duration(seconds: 1), (t) {
       if (!mounted) {
         t.cancel();
         return;
       }
-      setState(() => _remaining--);
+      setState(() {
+        _remaining--;
+        if (_remaining < 0) _remaining = 0;
+      });
       if (_remaining <= 0) _autoAdvance();
     });
   }
 
   void _goTo(int index) {
-    setState(() => _index = index);
-    _startQuestionTimer();
+    setState(() {
+      _index = index;
+      _grantFor(index);
+    });
   }
 
   void _autoAdvance() {
