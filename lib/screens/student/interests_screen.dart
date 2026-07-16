@@ -155,8 +155,10 @@ class _AcademicInterestsScreenState extends State<AcademicInterestsScreen> {
                                   color: AppColors.teal),
                               const SizedBox(height: 8),
                               Text(
-                                  'Pick one or more. NEET & JEE follow the NCERT '
-                                  'syllabus; CET follows the State Board syllabus.',
+                                  'Pick the exam you are preparing for. NEET & JEE '
+                                  'are national (NCERT). KCET, MHT-CET & KEAM scope '
+                                  'to your state (Karnataka / Maharashtra / Kerala) '
+                                  'plus the national NCERT/JEE/NEET bank.',
                                   style: Theme.of(context).textTheme.bodySmall),
                               const SizedBox(height: 14),
                               Wrap(spacing: 10, runSpacing: 10, children: [

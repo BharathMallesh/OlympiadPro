@@ -1,38 +1,61 @@
-/// Single source of truth for the exam → syllabus rule used across the whole
-/// app (profile, hub, practice, onboarding).
+/// Single source of truth for the exam → syllabus/state rule used across the
+/// whole app (profile, hub, practice, onboarding).
 ///
-/// NEET and JEE are based on the **NCERT** syllabus; CET is based on the
-/// **State Board** syllabus — so their question sets differ. The student picks
-/// ONE exam; the curriculum is derived from it (never chosen independently),
-/// which keeps every screen consistent and avoids contradictory combinations
-/// like "JEE + State Board".
+/// A student picks the exam they are preparing for. NEET & JEE are **national**
+/// (NCERT syllabus, available in every state). The rest are **state entrance
+/// exams** — picking one scopes the student's practice to that state's bank
+/// PLUS the national NEET/JEE/NCERT content (the backend widens every board
+/// scope with the pan-India boards, so nothing national is lost). The state is
+/// derived from the exam, never chosen separately, so scoping stays consistent
+/// and combinations like "JEE + Kerala only" can't happen.
 class ExamScope {
   const ExamScope._();
 
-  /// The exams a student/teacher can target.
-  static const exams = ['NEET', 'JEE', 'CET', 'PUC'];
+  /// The exams a student/teacher can target. NEET & JEE first (national), then
+  /// the state entrance exams. Add a new state's exam here when its bank ships.
+  static const exams = ['NEET', 'JEE', 'KCET', 'MHT-CET', 'KEAM'];
 
-  /// NEET & JEE → NCERT; CET → State Board; PUC has its own (Pre-University)
-  /// syllabus and is kept as its own curriculum bucket.
+  /// NEET & JEE follow NCERT; the state entrance exams follow their State Board
+  /// syllabus. This is the label shown to the student and sent as their
+  /// curriculum — the backend still layers the national NCERT/PYQ bank on top,
+  /// so a State-Board student is not cut off from national content.
   static const _curriculum = {
     'NEET': 'NCERT',
     'JEE': 'NCERT',
-    'CET': 'State Board',
-    'PUC': 'PUC',
+    'KCET': 'State Board',
+    'MHT-CET': 'State Board',
+    'KEAM': 'State Board',
+  };
+
+  /// The Indian state an exam belongs to. Null for the national exams
+  /// (NEET/JEE), which apply everywhere. Lets the app show/derive the student's
+  /// state from the exam they picked.
+  static const _state = {
+    'KCET': 'Karnataka',
+    'MHT-CET': 'Maharashtra',
+    'KEAM': 'Kerala',
   };
 
   /// The syllabus/curriculum an exam follows.
   static String curriculumFor(String exam) =>
       _curriculum[exam.trim().toUpperCase()] ?? 'NCERT';
 
+  /// The Indian state an exam scopes to, or null for the national exams.
+  static String? stateFor(String exam) => _state[exam.trim().toUpperCase()];
+
   /// Normalise a stored board label to one of [exams], or null if it isn't a
-  /// recognised exam (older profiles may hold 'PG CET', 'CBSE', etc.).
+  /// recognised exam. Legacy Karnataka-first profiles stored a generic 'CET' /
+  /// 'PUC'; map those to KCET so existing students keep a valid state exam.
   static String? normalize(String s) {
     final u = s.trim().toUpperCase();
     if (u == 'NEET') return 'NEET';
     if (u == 'JEE') return 'JEE';
-    if (u.contains('CET')) return 'CET';
-    if (u.contains('PUC')) return 'PUC';
+    if (u == 'KCET') return 'KCET';
+    if (u == 'MHT-CET' || u == 'MHTCET' || u == 'MHT CET') return 'MHT-CET';
+    if (u == 'KEAM') return 'KEAM';
+    // Legacy generic labels → the original Karnataka deployment's exam.
+    if (u.contains('CET')) return 'KCET';
+    if (u.contains('PUC')) return 'KCET';
     return null;
   }
 
