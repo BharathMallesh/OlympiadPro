@@ -6,6 +6,7 @@ import '../../app/theme.dart';
 import '../../data/repo.dart';
 import '../../widgets/common.dart';
 import '../../widgets/math_text.dart';
+import '../../widgets/question_figure.dart';
 
 /// Runs a generated practice set: one MCQ at a time, multi-select allowed,
 /// graded server-side on finish (the answer key never reaches the app).
@@ -204,6 +205,13 @@ class _PracticeSessionScreenState extends State<PracticeSessionScreen> {
                     const SizedBox(height: 14),
                     MixedMathText(_q['prompt'] as String? ?? '',
                         fontSize: 18),
+                    // Figures come after the prompt and before the options, the
+                    // way they're printed. Practice previously rendered none at
+                    // all, so any question needing a diagram was unanswerable
+                    // and had to be withheld from the pool entirely.
+                    for (final url in (_q['image_urls'] as List? ?? const [])
+                        .cast<String>())
+                      QuestionFigure(url),
                     const SizedBox(height: 18),
                     for (final (i, o) in options.indexed)
                       Padding(
