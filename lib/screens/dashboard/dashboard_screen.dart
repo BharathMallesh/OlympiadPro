@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../app/theme.dart';
+import '../../data/api.dart';
 import '../../data/exam_scope.dart';
 import '../../data/repo.dart';
 import '../../widgets/app_shell.dart';
@@ -63,7 +64,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
       classes = await Repo.classes();
     } catch (_) {/* optional targeting */}
     if (!mounted) return;
-    String exam = ExamScope.exams.first;
+    final examOptions = ExamScope.examsFor(api.institutionState);
+    String exam = examOptions.first;
     final titleCtrl = TextEditingController();
     final subjectCtrl = TextEditingController();
     final selClasses = <String>{};
@@ -85,7 +87,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 DropdownButton<String>(
                   value: exam,
                   isExpanded: true,
-                  items: ExamScope.exams
+                  items: examOptions
                       .map((e) => DropdownMenuItem(
                           value: e,
                           child: Text('$e · ${ExamScope.curriculumFor(e)}')))

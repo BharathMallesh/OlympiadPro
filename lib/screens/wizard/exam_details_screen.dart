@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../app/theme.dart';
+import '../../data/api.dart';
 import '../../data/exam_scope.dart';
 import '../../data/stores.dart';
 import '../../widgets/common.dart';
@@ -84,7 +85,7 @@ class _ExamDetailsScreenState extends State<ExamDetailsScreen> {
                 crossAxisSpacing: 10,
                 childAspectRatio: cols == 4 ? 2.6 : 3.4,
                 children: [
-                  for (final cat in ExamScope.exams)
+                  for (final cat in ExamScope.examsFor(api.institutionState))
                     SelectTile(cat,
                         selected: ExamScope.normalize(examDraft.board) == cat,
                         onTap: () => setState(() => examDraft.board = cat)),

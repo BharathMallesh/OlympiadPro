@@ -2,6 +2,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import '../../app/theme.dart';
+import '../../data/api.dart';
 import '../../data/exam_scope.dart';
 import '../../data/repo.dart';
 import '../../widgets/app_shell.dart';
@@ -189,7 +190,7 @@ class _GenerateScreenState extends State<GenerateScreen> {
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
-                children: ExamScope.exams.map((b) {
+                children: ExamScope.examsFor(api.institutionState).map((b) {
                   final sel = exam == b;
                   return InkWell(
                     onTap: () => setLocal(() => exam = sel ? null : b),

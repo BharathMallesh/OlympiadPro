@@ -64,7 +64,11 @@ class Repo {
         'teacher' => 'Teacher',
         _ => 'Educator',
       };
-      await api.setIdentity(t['full_name'] as String?, role);
+      // The admin's state (null for the founder) scopes their exam/board
+      // pickers to that state — a Karnataka admin shouldn't be offered
+      // MHT-CET/KEAM. The backend returns it alongside the teacher on login.
+      await api.setIdentity(t['full_name'] as String?, role,
+          state: r['institution_state'] as String?);
     }
   }
 

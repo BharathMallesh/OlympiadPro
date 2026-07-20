@@ -43,6 +43,19 @@ class ExamScope {
   /// The Indian state an exam scopes to, or null for the national exams.
   static String? stateFor(String exam) => _state[exam.trim().toUpperCase()];
 
+  /// The exams to offer an educator in [state]: the national exams (NEET/JEE,
+  /// which apply everywhere) plus only the entrance exam(s) belonging to that
+  /// state. A null/empty state (the founder) gets the full list — they manage
+  /// every state. This keeps a Karnataka teacher from being offered MHT-CET or
+  /// KEAM, which belong to other states.
+  static List<String> examsFor(String? state) {
+    final s = state?.trim();
+    if (s == null || s.isEmpty) return exams;
+    return exams
+        .where((e) => stateFor(e) == null || stateFor(e) == s)
+        .toList();
+  }
+
   /// Normalise a stored board label to one of [exams], or null if it isn't a
   /// recognised exam. Legacy Karnataka-first profiles stored a generic 'CET' /
   /// 'PUC'; map those to KCET so existing students keep a valid state exam.

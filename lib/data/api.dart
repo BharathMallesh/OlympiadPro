@@ -44,6 +44,7 @@ class ApiClient {
   static const _kRole = 'api_role'; // teacher | student
   static const _kName = 'api_name';
   static const _kSubtitle = 'api_subtitle';
+  static const _kState = 'api_state'; // admin's institution state (Karnataka…)
 
   static const _timeout = Duration(seconds: 30);
   static const _uploadTimeout = Duration(seconds: 60);
@@ -58,6 +59,10 @@ class ApiClient {
   String? role;
   String? displayName;
   String? displaySubtitle; // e.g. roll no / institution
+  /// The signed-in admin's Indian state (from the login response's
+  /// institution_state), or null for the founder / students. Scopes the
+  /// exam/board pickers to that state — see ExamScope.examsFor.
+  String? institutionState;
 
   /// Called when a 401 is received — navigate to login.
   void Function()? onUnauthorized;
@@ -66,6 +71,7 @@ class ApiClient {
     final prefs = await SharedPreferences.getInstance();
     displayName = prefs.getString(_kName);
     displaySubtitle = prefs.getString(_kSubtitle);
+    institutionState = prefs.getString(_kState);
 
     // Read credentials from secure storage. If absent, migrate any legacy
     // values that an older build left in shared_preferences.
@@ -90,12 +96,19 @@ class ApiClient {
     await _secure.write(key: _kRole, value: r);
   }
 
-  Future<void> setIdentity(String? name, String? subtitle) async {
+  Future<void> setIdentity(String? name, String? subtitle, {String? state}) async {
     displayName = name;
     displaySubtitle = subtitle;
+    institutionState = state;
     final prefs = await SharedPreferences.getInstance();
     if (name != null) await prefs.setString(_kName, name);
     if (subtitle != null) await prefs.setString(_kSubtitle, subtitle);
+    // A state that is now null (e.g. founder) must clear any stale value.
+    if (state != null && state.isNotEmpty) {
+      await prefs.setString(_kState, state);
+    } else {
+      await prefs.remove(_kState);
+    }
   }
 
   Future<void> clearSession() async {
@@ -103,11 +116,13 @@ class ApiClient {
     role = null;
     displayName = null;
     displaySubtitle = null;
+    institutionState = null;
     await _secure.delete(key: _kToken);
     await _secure.delete(key: _kRole);
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_kName);
     await prefs.remove(_kSubtitle);
+    await prefs.remove(_kState);
   }
 
   Map<String, String> get _headers => {

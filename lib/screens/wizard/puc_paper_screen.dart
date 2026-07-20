@@ -9,6 +9,7 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 
 import '../../app/theme.dart';
+import '../../data/api.dart';
 import '../../data/exam_scope.dart';
 import '../../data/repo.dart';
 import '../../widgets/app_shell.dart';
@@ -325,7 +326,7 @@ class _PucPaperScreenState extends State<PucPaperScreen> {
               value: _board,
               items: [
                 const DropdownMenuItem(value: null, child: Text('Any')),
-                ...ExamScope.exams.map(
+                ...ExamScope.examsFor(api.institutionState).map(
                     (e) => DropdownMenuItem(value: e, child: Text(e))),
               ],
               onChanged: (v) {
