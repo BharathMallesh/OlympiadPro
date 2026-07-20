@@ -472,16 +472,25 @@ class _GenerateScreenState extends State<GenerateScreen> {
       // Honour the Curriculum → Subject cascade filters.
       if (!_passesCascade(syl)) continue;
       final cid = syl['class_id'] as String?;
-      final key = cid ?? '__none__';
-      final name = (syl['class_name'] as String?)?.trim();
-      map
-          .putIfAbsent(
-              key,
-              () => _ClassGroup(
-                  key: key,
-                  name: (name == null || name.isEmpty) ? 'All students' : name))
-          .syllabi
-          .add(syl);
+      final className = (syl['class_name'] as String?)?.trim();
+      // A syllabus tied to a real class groups under that class. The shared
+      // self-study bank has no class, but each syllabus still knows its grade
+      // (11/12), so group by grade there — otherwise every level collapses into
+      // one "All students" bucket and a 2nd-PUC book looks unlabelled.
+      final grade = (syl['grade'] as String?)?.trim();
+      final String key;
+      final String name;
+      if (cid != null && cid.isNotEmpty) {
+        key = cid;
+        name = (className == null || className.isEmpty) ? 'All students' : className;
+      } else if (grade != null && grade.isNotEmpty) {
+        key = 'grade:$grade';
+        name = _gradeLabel(grade);
+      } else {
+        key = '__none__';
+        name = 'All students';
+      }
+      map.putIfAbsent(key, () => _ClassGroup(key: key, name: name)).syllabi.add(syl);
     }
     return map.values.toList()
       ..sort((a, b) {
@@ -489,6 +498,20 @@ class _GenerateScreenState extends State<GenerateScreen> {
         if (b.key == '__none__') return -1;
         return a.name.toLowerCase().compareTo(b.name.toLowerCase());
       });
+  }
+
+  /// Human label for a grade level. Grades are stored as "11"/"12"; show the
+  /// Pre-University wording used across the app ("2 PUC-KCET" etc.) and fall
+  /// back to "Class N" for anything else.
+  static String _gradeLabel(String grade) {
+    switch (grade.trim()) {
+      case '11':
+        return '1st PUC (Class 11)';
+      case '12':
+        return '2nd PUC (Class 12)';
+      default:
+        return 'Class $grade';
+    }
   }
 
   _ClassGroup? _groupFor(String? key) {
