@@ -66,6 +66,12 @@ class _PracticeGeneratorScreenState extends State<PracticeGeneratorScreen> {
   final Set<String> _curricula = {};
   final Set<String> _boards = {};
 
+  /// The state the student prepares for, from the exam they chose at
+  /// onboarding. Null = a pan-India-only (JEE/NEET) student. Scopes the exam
+  /// chips so a Kerala student isn't offered Karnataka's KCET or Maharashtra's
+  /// MHT-CET.
+  String? _studentState;
+
   static const _subjectIcons = {
     'Math': Icons.functions,
     'Maths': Icons.functions,
@@ -91,8 +97,11 @@ class _PracticeGeneratorScreenState extends State<PracticeGeneratorScreen> {
       // hub/profile already implies an exam, pre-select it.
       final boards = widget.initialBoards ?? await Repo.studentBoards();
       if (!mounted) return;
-      setState(() => _loading = false);
       final exam = ExamScope.examOf(boards);
+      setState(() {
+        _loading = false;
+        _studentState = exam != null ? ExamScope.stateFor(exam) : null;
+      });
       if (exam != null) _selectExam(exam);
     } catch (e) {
       if (!mounted) return;
@@ -386,7 +395,12 @@ class _PracticeGeneratorScreenState extends State<PracticeGeneratorScreen> {
   /// when the main "Generate" button is tapped, using the chosen subjects/
   /// chapters/topics scoped to this board.
   List<Widget> _examChips(BuildContext context) {
-    const exams = ExamScope.exams;
+    // Pan-India exams (JEE/NEET) plus only the student's own state exam — a
+    // Kerala student practising shouldn't be offered KCET or MHT-CET.
+    final exams = ExamScope.exams
+        .where((e) =>
+            ExamScope.stateFor(e) == null || ExamScope.stateFor(e) == _studentState)
+        .toList();
     return [
       Text('SELECT YOUR EXAM',
           style: AppTheme.mono(10, FontWeight.w700, ls: 1)),
