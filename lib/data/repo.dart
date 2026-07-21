@@ -58,12 +58,16 @@ class Repo {
     if (t != null) {
       // Label shown under the user's name in the shell — reflect the real role
       // (they all use the same educator app, but an admin should read "Admin").
-      final role = switch (t['role']) {
-        'super_admin' => 'Founder',
-        'admin' => 'Admin',
-        'teacher' => 'Teacher',
-        _ => 'Educator',
-      };
+      // Validators carry role='admin' for content powers but aren't institution
+      // admins, so the backend flags them separately to label them "Validator".
+      final role = (r['is_validator'] == true)
+          ? 'Validator'
+          : switch (t['role']) {
+              'super_admin' => 'Founder',
+              'admin' => 'Admin',
+              'teacher' => 'Teacher',
+              _ => 'Educator',
+            };
       // The admin's state (null for the founder) scopes their exam/board
       // pickers to that state — a Karnataka admin shouldn't be offered
       // MHT-CET/KEAM. The backend returns it alongside the teacher on login.
