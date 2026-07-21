@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../app/theme.dart';
+import '../../data/exam_scope.dart';
 import '../../data/repo.dart';
 import '../../widgets/common.dart';
 import '../../widgets/math_text.dart';
@@ -24,6 +25,11 @@ class _PreviousYearsScreenState extends State<PreviousYearsScreen> {
   String? _subject;
   String? _chapter;
 
+  /// The state the student is preparing for, derived from the exam they chose
+  /// at onboarding (KCET->Karnataka, KEAM->Kerala, …). Null = a pan-India-only
+  /// student (JEE/NEET). Used to hide other states' exams from the picker.
+  String? _studentState;
+
   bool _loadingQs = false;
   List<dynamic> _questions = const [];
 
@@ -40,9 +46,18 @@ class _PreviousYearsScreenState extends State<PreviousYearsScreen> {
     });
     try {
       final rows = await Repo.pyqIndex();
+      // The exam(s) the student targets → their state, so the picker shows only
+      // that state's exam plus the pan-India ones. Best-effort: a failure here
+      // just leaves the state null (pan-India only).
+      String? state;
+      try {
+        final exam = ExamScope.examOf(await Repo.studentBoards());
+        if (exam != null) state = ExamScope.stateFor(exam);
+      } catch (_) {}
       if (!mounted) return;
       setState(() {
         _index = rows.cast<Map<String, dynamic>>();
+        _studentState = state;
         _loading = false;
         _exam = _exams.isNotEmpty ? _exams.first : null;
       });
@@ -55,8 +70,16 @@ class _PreviousYearsScreenState extends State<PreviousYearsScreen> {
     }
   }
 
-  List<String> get _exams =>
-      (_index.map((e) => e['board'] as String).toSet().toList())..sort();
+  List<String> get _exams => (_index
+      .map((e) => e['board'] as String)
+      .toSet()
+      // Show pan-India exams (stateFor == null: JEE/NEET) plus only the
+      // student's own state exam — a Kerala student shouldn't be offered KCET or
+      // MHT-CET. A pan-India-only student (no state) sees just JEE/NEET.
+      .where((b) =>
+          ExamScope.stateFor(b) == null || ExamScope.stateFor(b) == _studentState)
+      .toList())
+    ..sort();
 
   List<int> get _years => _exam == null
       ? []
