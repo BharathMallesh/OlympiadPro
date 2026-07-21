@@ -394,6 +394,47 @@ class _StudentHubScreenState extends State<StudentHubScreen> {
                       kind: AppBtnKind.ghost,
                       trailingIcon: Icons.insights_outlined,
                       onPressed: () => context.push('/student/progress')),
+
+                  // ── Board Exam preparation ──────────────────────────────
+                  // A separate track from the entrance-exam prep above: a
+                  // student's Class-12 board (2nd PUC / Plus Two / HSC / CBSE),
+                  // derived from the state their exam belongs to.
+                  const SizedBox(height: 26),
+                  Row(children: [
+                    Container(
+                        width: 3,
+                        height: 15,
+                        decoration: BoxDecoration(
+                            color: AppColors.gold,
+                            borderRadius: BorderRadius.circular(2))),
+                    const SizedBox(width: 8),
+                    Text('BOARD EXAM',
+                        style: AppTheme.mono(11, FontWeight.w700, ls: 1.2)),
+                  ]),
+                  Builder(builder: (_) {
+                    final ex = ExamScope.examOf(_boards);
+                    final boardExam = ExamScope.boardExamFor(
+                        ex != null ? ExamScope.stateFor(ex) : null);
+                    final label = ExamScope.label(boardExam);
+                    return Column(children: [
+                      Padding(
+                        padding: const EdgeInsets.only(top: 6, bottom: 12),
+                        child: Text(
+                            'Practise for your $label board exam — from the board '
+                            'textbooks, separate from the entrance-exam prep above.',
+                            style: Theme.of(context).textTheme.bodySmall),
+                      ),
+                      AppButton('Board Practice · $label',
+                          expand: true,
+                          trailingIcon: Icons.menu_book_outlined,
+                          onPressed: () async {
+                            await context.push('/student/practice-generator'
+                                '?boards=$boardExam'
+                                '&curricula=${Uri.encodeComponent(ExamScope.curriculumFor(boardExam))}');
+                            _loadActivity();
+                          }),
+                    ]);
+                  }),
                   const SizedBox(height: 24),
                   if (!_loadingActivity && _activity.isNotEmpty) ...[
                     const SizedBox(height: 8),

@@ -81,6 +81,17 @@ class ExamScope {
   static List<String>? subjectsFor(String exam) =>
       _subjects[exam.trim().toUpperCase()];
 
+  /// The board exam a student in [state] sits (their Class-12 qualifying exam),
+  /// so the hub can offer board prep alongside their entrance exam. A national
+  /// student (no state, e.g. pure JEE/NEET) defaults to CBSE.
+  static const _stateBoardExam = {
+    'Karnataka': 'PUC',
+    'Kerala': 'DHSE',
+    'Maharashtra': 'HSC',
+  };
+  static String boardExamFor(String? state) =>
+      _stateBoardExam[state?.trim()] ?? 'CBSE';
+
   /// The name to show a student for this exam.
   static String label(String exam) =>
       _label[exam.trim().toUpperCase()] ?? exam.trim().toUpperCase();
