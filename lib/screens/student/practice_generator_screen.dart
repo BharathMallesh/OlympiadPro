@@ -142,8 +142,17 @@ class _PracticeGeneratorScreenState extends State<PracticeGeneratorScreen> {
       final rows = await Repo.practiceSubjects(
           boards: _boards.toList(), curricula: _curricula.toList());
       if (!mounted) return;
+      // Restrict to the exam's real subjects: NEET has no Maths, JEE no Biology.
+      // A state CET (subjectsFor == null) keeps every subject the pool offers.
+      final exam = ExamScope.examOf(_boards.toList());
+      final allowed = exam != null ? ExamScope.subjectsFor(exam) : null;
+      var subjects = rows.cast<Map<String, dynamic>>();
+      if (allowed != null) {
+        subjects =
+            subjects.where((r) => allowed.contains(r['subject'])).toList();
+      }
       setState(() {
-        _subjects = rows.cast<Map<String, dynamic>>();
+        _subjects = subjects;
         _loadingSubjects = false;
         _preselectInitial();
       });

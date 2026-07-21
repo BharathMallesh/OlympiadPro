@@ -36,12 +36,26 @@ class ExamScope {
     'KEAM': 'Kerala',
   };
 
+  /// The subjects an exam actually tests. NEET is medical (no Maths); JEE is
+  /// engineering (no Biology). The state CETs are left out on purpose — they run
+  /// both engineering and medical streams, so a student may take any of the four
+  /// and we don't restrict them.
+  static const _subjects = {
+    'NEET': ['Physics', 'Chemistry', 'Biology'],
+    'JEE': ['Physics', 'Chemistry', 'Mathematics'],
+  };
+
   /// The syllabus/curriculum an exam follows.
   static String curriculumFor(String exam) =>
       _curriculum[exam.trim().toUpperCase()] ?? 'NCERT';
 
   /// The Indian state an exam scopes to, or null for the national exams.
   static String? stateFor(String exam) => _state[exam.trim().toUpperCase()];
+
+  /// The subjects an exam covers, or null if it is not restricted (state CETs
+  /// span both streams). Used to hide Maths from NEET and Biology from JEE.
+  static List<String>? subjectsFor(String exam) =>
+      _subjects[exam.trim().toUpperCase()];
 
   /// The exams to offer an educator in [state]: the national exams (NEET/JEE,
   /// which apply everywhere) plus only the entrance exam(s) belonging to that
