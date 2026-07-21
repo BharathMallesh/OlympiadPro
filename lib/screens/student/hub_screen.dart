@@ -424,15 +424,12 @@ class _StudentHubScreenState extends State<StudentHubScreen> {
                             'textbooks, separate from the entrance-exam prep above.',
                             style: Theme.of(context).textTheme.bodySmall),
                       ),
-                      AppButton('Board Practice · $label',
+                      AppButton('Study · $label',
                           expand: true,
                           trailingIcon: Icons.menu_book_outlined,
-                          onPressed: () async {
-                            await context.push('/student/practice-generator'
-                                '?boards=$boardExam'
-                                '&curricula=${Uri.encodeComponent(ExamScope.curriculumFor(boardExam))}');
-                            _loadActivity();
-                          }),
+                          onPressed: () => context.push(
+                              '/student/board-study?board=$boardExam'
+                              '&label=${Uri.encodeComponent(label)}')),
                     ]);
                   }),
                   const SizedBox(height: 24),

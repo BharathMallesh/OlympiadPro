@@ -485,6 +485,28 @@ class Repo {
         if (boards.isNotEmpty) 'boards': boards,
       })) as Map<String, dynamic>;
 
+  /// Study mode: questions for a subject/chapter (+ optional topic) WITH their
+  /// answer and worked solution shown — for reading, not quizzing. Powers the
+  /// board-exam study screen.
+  static Future<List<dynamic>> studyQuestions({
+    required String subject,
+    String? chapter,
+    String? topic,
+    List<String> boards = const [],
+    List<String> curricula = const [],
+  }) async {
+    final qp = <String>[
+      'subject=${Uri.encodeComponent(subject)}',
+      if (chapter != null) 'chapter=${Uri.encodeComponent(chapter)}',
+      if (topic != null) 'topic=${Uri.encodeComponent(topic)}',
+      if (boards.isNotEmpty) 'boards=${Uri.encodeComponent(boards.join(","))}',
+      if (curricula.isNotEmpty)
+        'curricula=${Uri.encodeComponent(curricula.join(","))}',
+    ];
+    return (await api.get('/v1/student/practice/study?${qp.join("&")}'))
+        as List<dynamic>;
+  }
+
   // ---- Previous-year questions (browse/reference) ----
 
   static Future<List<dynamic>> pyqIndex() async =>

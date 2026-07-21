@@ -32,6 +32,7 @@ import '../screens/student/hub_screen.dart';
 import '../screens/student/insights_screen.dart';
 import '../screens/student/practice_generator_screen.dart';
 import '../screens/student/previous_years_screen.dart';
+import '../screens/student/board_study_screen.dart';
 import '../screens/student/practice_review_screen.dart';
 import '../screens/student/practice_session_screen.dart';
 import '../screens/student/exam_question_screen.dart';
@@ -100,6 +101,14 @@ final List<RouteBase> _studentRoutes = [
   GoRoute(
       path: '/student/previous-years',
       pageBuilder: (c, s) => _page(const PreviousYearsScreen(), s)),
+  GoRoute(
+      path: '/student/board-study',
+      pageBuilder: (c, s) => _page(
+          BoardStudyScreen(
+            board: s.uri.queryParameters['board'] ?? 'CBSE',
+            label: s.uri.queryParameters['label'] ?? 'Board',
+          ),
+          s)),
   GoRoute(
       path: '/student/practice-generator',
       pageBuilder: (c, s) {
