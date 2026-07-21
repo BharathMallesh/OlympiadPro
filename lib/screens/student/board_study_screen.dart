@@ -245,9 +245,15 @@ class _StudyCardState extends State<_StudyCard> {
   @override
   Widget build(BuildContext context) {
     final q = widget.card;
+    final qtype = q['qtype']?.toString() ?? 'multiple_choice';
+    final isMcq = qtype == 'multiple_choice';
     final options = (q['options'] as List<dynamic>? ?? const [])
         .cast<Map<String, dynamic>>();
     final sol = (q['solution']?.toString() ?? '').trim();
+    final marks = (q['marks'] as num?)?.toInt() ?? 0;
+    final scheme = (q['marking_scheme'] as List<dynamic>? ?? const [])
+        .map((s) => s.toString())
+        .toList();
     return AppCard(
       padding: const EdgeInsets.all(14),
       child: Column(
@@ -256,6 +262,18 @@ class _StudyCardState extends State<_StudyCard> {
           Row(children: [
             Text('Q${widget.index + 1}',
                 style: AppTheme.mono(12, FontWeight.w700, color: AppColors.primary)),
+            const SizedBox(width: 8),
+            // Type + marks badge so a student knows short vs long answer.
+            if (!isMcq)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                decoration: BoxDecoration(
+                    color: AppColors.gold.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(4)),
+                child: Text(
+                    '${qtype == 'long_answer' ? 'Long' : qtype == 'short_answer' ? 'Short' : 'Numeric'} · $marks mark${marks == 1 ? '' : 's'}',
+                    style: AppTheme.mono(9, FontWeight.w700, color: AppColors.gold)),
+              ),
             const Spacer(),
             if ((q['topic']?.toString() ?? '').isNotEmpty &&
                 q['topic'] != 'General')
@@ -265,13 +283,18 @@ class _StudyCardState extends State<_StudyCard> {
           const SizedBox(height: 8),
           MixedMathText(q['prompt']?.toString() ?? '', fontSize: 15),
           const SizedBox(height: 10),
-          // Options — the correct one highlighted (study mode shows the answer).
-          for (var i = 0; i < options.length; i++)
-            _optionRow(context, options[i],
-                correct: options[i]['correct'] == true, index: i),
-          if (sol.isNotEmpty) ...[
-            const SizedBox(height: 6),
-            _expander(context, 'Solution', MixedMathText(sol, fontSize: 13)),
+          if (isMcq) ...[
+            // Options — the correct one highlighted (study mode shows the answer).
+            for (var i = 0; i < options.length; i++)
+              _optionRow(context, options[i],
+                  correct: options[i]['correct'] == true, index: i),
+            if (sol.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              _expander(context, 'Solution', MixedMathText(sol, fontSize: 13)),
+            ],
+          ] else ...[
+            // Descriptive: show the model answer directly (this IS the study).
+            if (sol.isNotEmpty) _modelAnswer(context, sol, scheme),
           ],
           const SizedBox(height: 6),
           // Ask AI for any doubt.
@@ -321,6 +344,42 @@ class _StudyCardState extends State<_StudyCard> {
               child: MixedMathText(o['text']?.toString() ?? '', fontSize: 13)),
           if (correct)
             const Icon(Icons.check_circle, size: 16, color: AppColors.success),
+        ],
+      ),
+    );
+  }
+
+  /// The model answer for a descriptive question, shown directly (study mode),
+  /// with the point-wise marking scheme for long answers.
+  Widget _modelAnswer(BuildContext context, String answer, List<String> scheme) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.success.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(AppRadius.sm),
+        border: Border.all(color: AppColors.success.withValues(alpha: 0.35)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('MODEL ANSWER',
+              style: AppTheme.mono(10, FontWeight.w700, color: AppColors.success)),
+          const SizedBox(height: 8),
+          MixedMathText(answer, fontSize: 13),
+          if (scheme.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Text('MARKING SCHEME',
+                style: AppTheme.mono(9, FontWeight.w700, color: AppColors.muted)),
+            const SizedBox(height: 4),
+            for (var i = 0; i < scheme.length; i++)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('• ', style: AppTheme.mono(12, FontWeight.w700)),
+                  Expanded(child: MixedMathText(scheme[i], fontSize: 12)),
+                ]),
+              ),
+          ],
         ],
       ),
     );
