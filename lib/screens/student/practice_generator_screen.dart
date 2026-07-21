@@ -437,7 +437,7 @@ class _PracticeGeneratorScreenState extends State<PracticeGeneratorScreen> {
           borderRadius: BorderRadius.circular(AppRadius.sm),
           border: Border.all(color: sel ? AppColors.primary : AppColors.outline),
         ),
-        child: Text(board,
+        child: Text(ExamScope.label(board),
             style: AppTheme.mono(11, FontWeight.w700,
                 color: sel ? AppColors.primary : AppColors.muted)),
       ),

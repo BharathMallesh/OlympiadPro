@@ -177,7 +177,7 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
                                         ? AppColors.teal
                                         : AppColors.outlineStrong),
                               ),
-                              child: Text(e,
+                              child: Text(ExamScope.label(e),
                                   style: TextStyle(
                                       color: sel
                                           ? AppColors.onPrimary

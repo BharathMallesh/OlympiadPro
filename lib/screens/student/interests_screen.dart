@@ -164,7 +164,7 @@ class _AcademicInterestsScreenState extends State<AcademicInterestsScreen> {
                               Wrap(spacing: 10, runSpacing: 10, children: [
                                 for (final e in ExamScope.exams)
                                   _ExamChip(
-                                    label: e,
+                                    label: ExamScope.label(e),
                                     selected: _exams.contains(e),
                                     onTap: () => setState(() => _exams.contains(e)
                                         ? _exams.remove(e)
