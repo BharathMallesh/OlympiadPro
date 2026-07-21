@@ -494,6 +494,8 @@ class Repo {
     String? topic,
     List<String> boards = const [],
     List<String> curricula = const [],
+    bool papersOnly = false,
+    int? year,
   }) async {
     final qp = <String>[
       'subject=${Uri.encodeComponent(subject)}',
@@ -502,6 +504,8 @@ class Repo {
       if (boards.isNotEmpty) 'boards=${Uri.encodeComponent(boards.join(","))}',
       if (curricula.isNotEmpty)
         'curricula=${Uri.encodeComponent(curricula.join(","))}',
+      if (papersOnly) 'papers_only=true',
+      if (year != null) 'year=$year',
     ];
     return (await api.get('/v1/student/practice/study?${qp.join("&")}'))
         as List<dynamic>;

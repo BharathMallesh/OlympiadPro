@@ -25,11 +25,15 @@ class _BoardStudyScreenState extends State<BoardStudyScreen> {
   bool _loading = true;
   String? _error;
 
+  // 'study' = browse chapters; 'papers' = previous-year board papers.
+  String _mode = 'study';
+
   // subject -> ordered list of chapter names (from /practice/topics).
   final Map<String, List<String>> _byChapter = {};
   String? _subject;
 
-  String? _chapter; // the chapter currently being studied
+  String? _chapter; // the chapter currently being studied (study mode)
+  bool _inPapers = false; // viewing a subject's papers (papers mode)
   bool _loadingCards = false;
   List<Map<String, dynamic>> _cards = const [];
 
@@ -73,9 +77,24 @@ class _BoardStudyScreenState extends State<BoardStudyScreen> {
       _loadingCards = true;
       _cards = const [];
     });
+    await _loadCards(() => Repo.studyQuestions(
+        subject: _subject!, chapter: chapter, boards: [widget.board]));
+  }
+
+  /// Papers mode: load the whole subject's previous-year board-paper questions.
+  Future<void> _openPapers() async {
+    setState(() {
+      _inPapers = true;
+      _loadingCards = true;
+      _cards = const [];
+    });
+    await _loadCards(() => Repo.studyQuestions(
+        subject: _subject!, boards: [widget.board], papersOnly: true, year: null));
+  }
+
+  Future<void> _loadCards(Future<List<dynamic>> Function() fetch) async {
     try {
-      final rows = await Repo.studyQuestions(
-          subject: _subject!, chapter: chapter, boards: [widget.board]);
+      final rows = await fetch();
       if (!mounted) return;
       setState(() {
         _cards = rows.cast<Map<String, dynamic>>();
@@ -100,19 +119,21 @@ class _BoardStudyScreenState extends State<BoardStudyScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text(_chapter == null ? 'Board Study' : _chapter!,
+            Text(_inCards ? (_chapter ?? 'Board Papers') : 'Board Study',
                 style: Theme.of(context).textTheme.titleLarge),
-            Text('${widget.label} · study mode',
+            Text(
+                '${widget.label} · ${_mode == 'papers' ? 'previous-year papers' : 'study mode'}',
                 style: AppTheme.mono(9, FontWeight.w600, color: AppColors.gold)),
           ],
         ),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () {
-            // Back out of a chapter to its list first, then leave the screen.
-            if (_chapter != null) {
+            // Back out of a chapter / papers list first, then leave the screen.
+            if (_inCards) {
               setState(() {
                 _chapter = null;
+                _inPapers = false;
                 _cards = const [];
               });
             } else {
@@ -125,14 +146,18 @@ class _BoardStudyScreenState extends State<BoardStudyScreen> {
           ? const Center(child: CircularProgressIndicator())
           : _error != null
               ? Center(child: Padding(padding: const EdgeInsets.all(24), child: Text(_error!)))
-              : _chapter == null
-                  ? _chapterBrowser()
-                  : _studyList(),
+              : _inCards
+                  ? _studyList()
+                  : _browser(),
     );
   }
 
-  // ---- Browse: subject chips + chapter list ----
-  Widget _chapterBrowser() {
+  /// Whether a set of question cards is on screen (a chapter, or a subject's
+  /// papers) versus the browse view.
+  bool get _inCards => _chapter != null || _inPapers;
+
+  // ---- Browse: mode toggle + subject chips + (chapters | papers) ----
+  Widget _browser() {
     if (_byChapter.isEmpty) {
       return const Center(
           child: Padding(
@@ -140,12 +165,26 @@ class _BoardStudyScreenState extends State<BoardStudyScreen> {
               child: Text('No board content available yet.')));
     }
     final chapters = _subject == null ? const <String>[] : (_byChapter[_subject] ?? const []);
+    final papers = _mode == 'papers';
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // Study vs Previous-Year-Papers toggle.
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
-          child: Text('PICK A CHAPTER TO STUDY',
+          padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
+          child: SegmentedButton<String>(
+            segments: const [
+              ButtonSegment(value: 'study', label: Text('Study'), icon: Icon(Icons.menu_book_outlined, size: 16)),
+              ButtonSegment(value: 'papers', label: Text('Papers'), icon: Icon(Icons.history_edu_outlined, size: 16)),
+            ],
+            selected: {_mode},
+            showSelectedIcon: false,
+            onSelectionChanged: (s) => setState(() => _mode = s.first),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 6, 16, 4),
+          child: Text(papers ? 'PREVIOUS-YEAR BOARD PAPERS' : 'PICK A CHAPTER TO STUDY',
               style: AppTheme.mono(10, FontWeight.w700, ls: 1)),
         ),
         // Subject selector.
@@ -169,19 +208,44 @@ class _BoardStudyScreenState extends State<BoardStudyScreen> {
         ),
         const Divider(height: 1),
         Expanded(
-          child: ListView.separated(
-            padding: const EdgeInsets.all(12),
-            itemCount: chapters.length,
-            separatorBuilder: (_, i) => const SizedBox(height: 8),
-            itemBuilder: (ctx, i) => AppCard(
-              padding: EdgeInsets.zero,
-              child: ListTile(
-                title: Text(chapters[i],
-                    style: Theme.of(context).textTheme.bodyLarge),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () => _openChapter(chapters[i]),
-              ),
-            ),
+          child: papers
+              ? _papersBrowser()
+              : ListView.separated(
+                  padding: const EdgeInsets.all(12),
+                  itemCount: chapters.length,
+                  separatorBuilder: (_, i) => const SizedBox(height: 8),
+                  itemBuilder: (ctx, i) => AppCard(
+                    padding: EdgeInsets.zero,
+                    child: ListTile(
+                      title: Text(chapters[i],
+                          style: Theme.of(context).textTheme.bodyLarge),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () => _openChapter(chapters[i]),
+                    ),
+                  ),
+                ),
+        ),
+      ],
+    );
+  }
+
+  /// Papers mode: one entry that opens the whole subject's board-paper
+  /// questions (each card is labelled with its own year, so multiple years mix
+  /// cleanly as more papers are ingested).
+  Widget _papersBrowser() {
+    return ListView(
+      padding: const EdgeInsets.all(12),
+      children: [
+        AppCard(
+          padding: EdgeInsets.zero,
+          child: ListTile(
+            leading: const Icon(Icons.history_edu_outlined, color: AppColors.gold),
+            title: Text('$_subject — board exam papers',
+                style: Theme.of(context).textTheme.bodyLarge),
+            subtitle: Text('Real ${widget.label} board questions with model answers',
+                style: Theme.of(context).textTheme.bodySmall),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: _subject == null ? null : _openPapers,
           ),
         ),
       ],
@@ -263,6 +327,17 @@ class _StudyCardState extends State<_StudyCard> {
             Text('Q${widget.index + 1}',
                 style: AppTheme.mono(12, FontWeight.w700, color: AppColors.primary)),
             const SizedBox(width: 8),
+            // Paper-year badge: which year's board paper this question is from.
+            if (q['exam_year'] != null)
+              Container(
+                margin: const EdgeInsets.only(right: 6),
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(4)),
+                child: Text('${q['exam_year']} Board',
+                    style: AppTheme.mono(9, FontWeight.w700, color: AppColors.primary)),
+              ),
             // Type + marks badge so a student knows short vs long answer.
             if (!isMcq)
               Container(
