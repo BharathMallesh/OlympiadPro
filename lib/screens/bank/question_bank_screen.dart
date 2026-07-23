@@ -30,7 +30,6 @@ class _QuestionBankScreenState extends State<QuestionBankScreen> {
   @override
   Widget build(BuildContext context) {
     return AppShell(
-      brand: 'MathKraft',
       currentRoute: '/bank',
       title: 'Question Bank',
       actions: [

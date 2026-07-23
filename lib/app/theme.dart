@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-/// Central design tokens derived from the Vidyora / MathKraft
+/// Central design tokens derived from the Vidyora
 /// "Academic Dark" design system.
 class AppColors {
   // Vidyora brand: navy + gold on a cream/light surface.

@@ -33,7 +33,7 @@ String _plainFromTex(String s) => sanitizeInlineTex(s)
     .replaceAll('^', '')
     .trim();
 
-/// Real LaTeX rendering per the MathKraft design doc ("math-latex-white" on
+/// Real LaTeX rendering per the Vidyora design doc ("math-latex-white" on
 /// the void panel, >=7:1 contrast). Falls back to monospace if TeX parsing
 /// fails so malformed AI output never breaks a screen.
 class MathText extends StatelessWidget {
@@ -96,7 +96,18 @@ class MixedMathText extends StatelessWidget {
   final Color? color;
   final TextStyle? style;
 
-  static final _mathSegment = RegExp(r'\$\$(.+?)\$\$|\$(.+?)\$', dotAll: true);
+  // `$…$` / `$$…$$` math and `**…**` emphasis are matched in one pass so a bold
+  // run can't swallow a `$` (and vice versa).
+  static final _segment =
+      RegExp(r'\$\$(.+?)\$\$|\$(.+?)\$|\*\*(.+?)\*\*', dotAll: true);
+
+  /// A markdown pipe table. AI-authored solutions carry these, and the
+  /// board-paper ingest stores its text with newlines stripped, so rows can't
+  /// be recovered from `\n` — the alignment row (`:---`) gives the column
+  /// count instead, and cells are chunked by it. Matches a run of pipes only;
+  /// prose on either side is rendered normally.
+  static final _tableRun = RegExp(r'\|(?:[^|]*\|)+');
+  static final _sepCell = RegExp(r'^:?-{2,}:?$');
 
   @override
   Widget build(BuildContext context) {
@@ -104,34 +115,135 @@ class MixedMathText extends StatelessWidget {
         Theme.of(context).textTheme.bodyLarge?.copyWith(
             fontSize: fontSize, color: color, height: 1.5) ??
         TextStyle(fontSize: fontSize, color: color);
-    if (!source.contains(r'$')) return Text(source, style: base);
 
+    final table = _parseTable(source);
+    if (table == null) return _rich(source, base);
+
+    // A table needs block layout, so this branch returns a Column. Everything
+    // without a table keeps the original single-Text.rich shape.
+    final before = source.substring(0, table.start).trim();
+    final after = source.substring(table.end).trim();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (before.isNotEmpty) _rich(before, base),
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: _table(table, base),
+          ),
+        ),
+        if (after.isNotEmpty) _rich(after, base),
+      ],
+    );
+  }
+
+  Widget _rich(String src, TextStyle base) =>
+      Text.rich(TextSpan(style: base, children: _inline(src, base)));
+
+  /// Prose split into text, rendered math, and bold runs. `bold` is set when
+  /// recursing into a `**…**` body so emphasis composes with inline math.
+  List<InlineSpan> _inline(String src, TextStyle base, {bool bold = false}) {
+    final style = bold ? base.copyWith(fontWeight: FontWeight.w700) : base;
     final spans = <InlineSpan>[];
     var cursor = 0;
-    for (final m in _mathSegment.allMatches(source)) {
+    for (final m in _segment.allMatches(src)) {
       if (m.start > cursor) {
-        spans.add(TextSpan(text: source.substring(cursor, m.start)));
+        spans.add(TextSpan(text: src.substring(cursor, m.start), style: style));
+      }
+      cursor = m.end;
+      if (m.group(3) != null) {
+        spans.addAll(_inline(m.group(3)!, base, bold: true));
+        continue;
       }
       final rawTex = (m.group(1) ?? m.group(2) ?? '').trim();
-      final tex = sanitizeInlineTex(rawTex);
       spans.add(WidgetSpan(
         alignment: PlaceholderAlignment.middle,
         child: Math.tex(
-          tex,
+          sanitizeInlineTex(rawTex),
           // Inline math must match the surrounding prose colour, or it renders
           // near-white (invisible) on light cards. Fall back to onSurface.
           textStyle: TextStyle(
               fontSize: fontSize,
+              fontWeight: bold ? FontWeight.w700 : null,
               color: color ?? base.color ?? AppColors.onSurface),
           // If it still won't parse, show clean text — never the raw `$...$`.
-          onErrorFallback: (_) => Text(_plainFromTex(rawTex), style: base),
+          onErrorFallback: (_) => Text(_plainFromTex(rawTex), style: style),
         ),
       ));
-      cursor = m.end;
     }
-    if (cursor < source.length) {
-      spans.add(TextSpan(text: source.substring(cursor)));
+    if (cursor < src.length) {
+      spans.add(TextSpan(text: src.substring(cursor), style: style));
     }
-    return Text.rich(TextSpan(style: base, children: spans));
+    return spans;
   }
+
+  _MarkdownTable? _parseTable(String src) {
+    if (!src.contains('|')) return null;
+    for (final m in _tableRun.allMatches(src)) {
+      // Empty cells are the seams between rows once newlines are gone
+      // (`… | | **Ry** | …`), so they carry no data and are dropped.
+      final cells = m
+          .group(0)!
+          .split('|')
+          .map((c) => c.trim())
+          .where((c) => c.isNotEmpty)
+          .toList();
+      final firstSep = cells.indexWhere(_sepCell.hasMatch);
+      if (firstSep <= 0) continue;
+      var lastSep = firstSep;
+      while (lastSep + 1 < cells.length && _sepCell.hasMatch(cells[lastSep + 1])) {
+        lastSep++;
+      }
+      final cols = lastSep - firstSep + 1;
+      final header = cells.sublist(0, firstSep);
+      if (header.length != cols) continue; // ragged — not a table we can trust
+      final body = cells.sublist(lastSep + 1);
+      final rows = <List<String>>[
+        for (var i = 0; i + cols <= body.length; i += cols)
+          body.sublist(i, i + cols),
+      ];
+      if (rows.isEmpty) continue;
+      return _MarkdownTable(m.start, m.end, header, rows);
+    }
+    return null;
+  }
+
+  Widget _table(_MarkdownTable t, TextStyle base) {
+    final line = BorderSide(color: AppColors.outline.withValues(alpha: 0.6));
+    Widget cell(String text, {bool head = false}) => Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          child: Text.rich(TextSpan(
+              style: base,
+              children: _inline(text, base.copyWith(fontSize: fontSize * 0.95),
+                  bold: head))),
+        );
+    return DecoratedBox(
+      decoration: BoxDecoration(border: Border.fromBorderSide(line)),
+      child: Table(
+        defaultColumnWidth: const IntrinsicColumnWidth(),
+        border: TableBorder(horizontalInside: line, verticalInside: line),
+        children: [
+          TableRow(
+            decoration: BoxDecoration(
+                color: AppColors.onSurface.withValues(alpha: 0.05)),
+            children: [for (final h in t.header) cell(h, head: true)],
+          ),
+          for (final r in t.rows)
+            TableRow(children: [for (final c in r) cell(c)]),
+        ],
+      ),
+    );
+  }
+}
+
+/// A pipe table recovered from `source`, plus the span it occupied so the
+/// prose around it can still render as normal text.
+class _MarkdownTable {
+  const _MarkdownTable(this.start, this.end, this.header, this.rows);
+  final int start;
+  final int end;
+  final List<String> header;
+  final List<List<String>> rows;
 }
